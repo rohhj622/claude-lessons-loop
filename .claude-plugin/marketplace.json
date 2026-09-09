@@ -1,0 +1,12 @@
+{
+  "name": "claude-lessons-loop",
+  "description": "세션에서 겪은 실수를 다음 세션의 경고 문장으로 되돌리는 훅·스킬 묶음",
+  "owner": { "name": "Hyunjin Roh" },
+  "plugins": [
+    {
+      "name": "claude-lessons-loop",
+      "source": "./",
+      "description": "교훈을 쌓고, 다음 세션의 컨텍스트에 자동으로 되돌려 주는 훅·스킬 묶음"
+    }
+  ]
+}

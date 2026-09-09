@@ -1,0 +1,13 @@
+# 파이썬 실행 부산물
+__pycache__/
+*.pyc
+
+# 훅이 돌면서 남기는 로그. 사람이 보는 용도지 저장소에 남길 것은 아니다.
+hooks/session-end.log
+
+# OS · 편집기 부산물
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

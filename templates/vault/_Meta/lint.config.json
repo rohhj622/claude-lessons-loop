@@ -1,0 +1,8 @@
+{
+  "_comment": "lint.py 가 읽는 어휘. 여기를 고치면 _Meta/스키마.md 도 같이 고친다 — 한쪽만 고치면 검사기와 문서가 갈린다.",
+  "programs": ["연구", "용역", "운영", "개인연구"],
+  "required": [
+    "type", "project_type", "id", "aliases", "name", "status", "priority",
+    "program", "owner", "team", "start_date", "updated", "tags"
+  ]
+}
