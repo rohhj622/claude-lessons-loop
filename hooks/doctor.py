@@ -42,14 +42,22 @@ def collect():
             platform.system(), platform.machine(),
             platform.python_version()), True))
 
+    # 설정이 진짜로 없는 것과, 훅 밖에서 돌려 설정을 **볼 수 없는** 것은 다르다.
+    # 둘을 같은 문구로 안내하면 이미 설정을 마친 사람이 멀쩡한 설정을 다시 만진다.
+    blind = not paths.VAULT and not paths.inside_plugin_runtime()
     if paths.VAULT:
         rows.append(_row("기록 폴더", paths.VAULT, True))
     else:
         raw = os.environ.get("LESSONS_VAULT", "")
-        rows.append(_row(
-            "기록 폴더", raw or "(설정 없음)", False,
-            "폴더가 없다. 경로를 확인한다." if raw else
-            "/claude-lessons-loop:configure 로 설정한다."))
+        if raw:
+            hint = "폴더가 없다. 경로를 확인한다."
+        elif blind:
+            hint = ("훅 밖에서 돌려 플러그인 설정을 볼 수 없다. 이미 설정했다면 "
+                    "정상이다 — 새 세션의 훅 출력으로 확인하거나, "
+                    "LESSONS_VAULT=<경로> 를 주고 다시 돌린다.")
+        else:
+            hint = "/claude-lessons-loop:configure 로 설정한다."
+        rows.append(_row("기록 폴더", raw or "(설정 없음)", False, hint))
 
     idx_md = os.path.join(paths.VAULT, "Lessons", "INDEX.md") if paths.VAULT else ""
     if idx_md and os.path.isfile(idx_md):
@@ -64,6 +72,7 @@ def collect():
     else:
         rows.append(_row(
             "교훈 목록", idx_md or "(기록 폴더 없음)", False,
+            "기록 폴더를 못 봐서 확인하지 못했다. 위 줄을 먼저 푼다." if blind else
             "Lessons/INDEX.md 가 없다. configure 로 템플릿을 복사한다."))
 
     # 점검기는 사람이 부르는 것이라 느려도 된다. 조회까지 다 해 본다.
@@ -79,7 +88,8 @@ def collect():
 
     cfg = paths.config_file()
     if not cfg:
-        rows.append(_row("설정 파일", "(플러그인 데이터 자리를 못 찾음)", True))
+        rows.append(_row(
+            "설정 파일", "(아직 없다 — 관례 위치에도 없음)", True))
     elif os.path.isfile(cfg):
         rows.append(_row("설정 파일", cfg, True))
     else:

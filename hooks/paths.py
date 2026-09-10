@@ -111,9 +111,37 @@ def _cache_write(name, value):
 _CONFIG_CACHE = None
 
 
+# 설정 파일만은 그 자리를 못 찾아도 바로 포기하지 않는다. 파일의 **경로 자체**를
+# CLAUDE_PLUGIN_DATA 에서 계산하므로, 그 변수가 없으면 "환경변수가 없는 곳을 위한
+# 셋째 자리"가 도리어 환경변수를 요구하는 순환이 된다. 훅 밖(셸·CI·doctor 직접
+# 실행)에서 설정이 통째로 안 보이던 원인이 이것이었다. 그래서 관례 위치를 찾는다.
+_DATA_GLOB = "/.claude/plugins/data/*claude-lessons-loop*"
+
+
+def _fallback_data_dirs():
+    """제품이 자리를 안 알려 줄 때 뒤져 볼 곳. 없으면 빈 목록."""
+    import glob
+    out = []
+    for h in _both_forms(_HOME):
+        out.extend(sorted(glob.glob(h + _DATA_GLOB)))
+    return out
+
+
 def config_file():
-    """설정 파일 경로. 플러그인 데이터 자리를 못 찾으면 빈 문자열."""
-    return _cache_path("config.json")
+    """설정 파일 경로. 어디에도 없으면 빈 문자열."""
+    p = _cache_path("config.json")
+    if p:
+        return p
+    for d in _fallback_data_dirs():
+        c = os.path.join(d, "config.json")
+        if os.path.isfile(c):
+            return c
+    return ""
+
+
+def inside_plugin_runtime():
+    """제품이 훅으로 부른 것인가. 플러그인 설정은 이때만 환경에 들어온다."""
+    return bool(os.environ.get("CLAUDE_PLUGIN_DATA"))
 
 
 def _config():
