@@ -1,7 +1,6 @@
 ---
 name: wrap
 description: 세션 마무리 — 이번 세션의 작업을 기록에 반영하고 교훈(LSN) 후보를 정리. 작업을 끝내거나 세션을 닫기 전에 사용.
-model: sonnet
 ---
 
 # /wrap — 세션 마무리

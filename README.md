@@ -18,13 +18,27 @@
 
 ## 설치
 
+**Claude Code**
+
 ```
 /plugin marketplace add rohhj622/claude-lessons-loop
 /plugin install claude-lessons-loop@claude-lessons-loop
 ```
 
-플러그인을 켜면 Claude Code 가 **기록 폴더 경로를 묻는다.** 그 하나만 정하면 된다.
-나머지는 설정 스킬이 물어 가며 채운다.
+플러그인을 켜면 **기록 폴더 경로를 묻는다.** 그 하나만 정하면 된다.
+
+**Codex**
+
+```
+codex plugin marketplace add rohhj622/claude-lessons-loop
+codex plugin add claude-lessons-loop@claude-lessons-loop
+```
+
+Codex 는 훅마다 신뢰를 승인받는다. 처음 붙일 때 한 번 승인하면 되고,
+**훅 파일이 바뀌면 다시 묻는다.** Codex 에는 켤 때 묻는 화면이 없으므로
+기록 폴더는 아래 설정 절차로 정한다.
+
+양쪽 다 그다음은 설정 스킬이 물어 가며 채운다.
 
 ```
 /claude-lessons-loop:configure
@@ -97,8 +111,17 @@ qmd 가 타임아웃되거나 실패하면 **왜 그랬는지도 같이 낸다.*
 | 한 발화에 붙일 교훈 수 | `3` | 많이 넣으면 컨텍스트를 먹는다 |
 | 검색 제한 시간 | `12`초 | 훅 제한(15초)보다 작아야 한다. 크게 잡으면 잘린다 |
 
-값은 `~/.claude/settings.json` 에 저장되고 **플러그인을 갱신해도 남는다.**
-환경변수(`LESSONS_VAULT` · `QMD_BIN` · `QMD_INDEX`)를 주면 그쪽이 이긴다.
+값을 둘 자리가 셋이고 위가 이긴다.
+
+1. **환경변수** — `LESSONS_VAULT` · `QMD_BIN` · `QMD_INDEX`. 어디서든 이긴다.
+2. **플러그인 설정** — `~/.claude/settings.json` 에 저장된다. **Claude Code 전용이다** —
+   Codex 는 이 값을 훅에 넘기지 않는다.
+3. **설정 파일** — 점검기가 찍는 `설정 파일` 줄의 경로에 JSON 으로 둔다.
+   플러그인 갱신을 견디고 **양쪽에서 다 읽히는 유일한 자리다.**
+
+```json
+{ "vault_dir": "/home/me/notes", "min_score": 0.4 }
+```
 
 > **훅 파일을 직접 고치지 말 것.** `${CLAUDE_PLUGIN_ROOT}` 아래는 플러그인이
 > 소유하는 자리라 `/plugin update` 가 덮어쓴다. 고쳐 놓은 값이 조용히 사라진다.
@@ -108,9 +131,9 @@ qmd 가 타임아웃되거나 실패하면 **왜 그랬는지도 같이 낸다.*
 ## ⚠ 먼저 읽을 것
 
 **`Lessons/INDEX.md` 의 칸 이름을 바꾸지 않는다.** 훅이 이 표를 기계로 읽는다.
-칸 이름은 `ID · 제목 · 중요도 · 날짜` 넷이다. **순서는 바꿔도 된다** — 이름으로
-찾는다. 이름을 바꾸거나 지우면 교훈이 안 붙고, 그때는 빈칸이 아니라 왜 못 읽었는지가
-나온다.
+칸 이름은 `ID · 제목 · 중요도 · 날짜` 넷이고 **넷이 다 있어야 한다.** 순서는 바꿔도
+된다 — 이름으로 찾는다. 하나라도 이름이 다르면 교훈이 안 붙고, 그때는 빈칸이 아니라
+**어느 칸 이름이 없는지**가 세션 시작에 나온다.
 
 **교훈을 쓴 뒤 qmd 색인을 갱신해야 한다.** 안 하면 방금 쓴 교훈은 의미검색에 안
 잡힌다. 갱신을 닷새 빼먹어 교훈 25건(당시 29%)이 조용히 빠져 있었던 적이 있고, 그
@@ -128,14 +151,24 @@ qmd 가 타임아웃되거나 실패하면 **왜 그랬는지도 같이 낸다.*
 | SessionStart | `session-start.py` | `INDEX.md` 의 지정 묶음에서 중요도 high 인 행만 넣는다. **검색을 안 쓴다** — 색인이 낡아도 이쪽은 산다 |
 | SessionStart | `tagscan.py` | 노트 끝에 흘러든 닫는 태그 오염을 훑는다. 탐지만 하고 고치지 않는다 |
 | UserPromptSubmit | `lesson-recall.py` | 발화를 그대로 검색어로 써서 가까운 교훈을 붙인다 |
-| SessionEnd | `session-end.py` | 교훈이 색인보다 새것일 때만 `qmd update && embed` 를 돌린다 |
+| SessionEnd | `session-end.py` | 교훈이 색인보다 새것이면 재색인을 **분리해 띄우고 바로 빠진다**. 훅 자체는 0.02초에 끝난다 |
 
 `startup` 과 `clear` 에서 돈다. `/clear` 뒤에도 상시 교훈이 살아 있게 하기 위해서다.
 
 **모든 훅은 어떤 경우에도 `exit 0` 으로 끝난다.** 훅이 작업을 막아서는 안 된다.
 
-거드는 파일 넷이 더 있다. `paths.py`(경로와 설정값 해석), `index_md.py`(표를 읽는
-유일한 자리), `search.py`(검색기 둘), `doctor.py`(점검기).
+거드는 파일이 더 있다. `paths.py`(경로와 설정값 해석), `index_md.py`(표를 읽는
+유일한 자리), `search.py`(검색기 둘), `doctor.py`(점검기), `manifests.py`(매니페스트
+둘이 갈렸는지), `py.sh`·`py.cmd`(파이썬 실행기).
+
+자가검사가 있는 것은 넷이다. 고쳐 놓고 자가검사에 안 넣으면 다음 사람이 조용히
+깨뜨린다 — 실제로 그렇게 했다가 외부 검증에서 구멍 셋을 지적받았다.
+
+```bash
+python hooks/index_md.py --selftest
+python hooks/manifests.py --selftest
+python "$LESSONS_VAULT/_Meta/lint.py" --selftest
+```
 
 ### 스킬 둘 (`skills/`)
 
@@ -198,8 +231,11 @@ qmd 가 타임아웃되거나 실패하면 **왜 그랬는지도 같이 낸다.*
 
 ## 환경
 
-파이썬 3 이 있어야 한다. 없으면 훅들이 조용히 통과한다. Node 는 qmd 를 쓸 때만
-필요하고, `_Meta/drift.py` 만 PyYAML 이 필요하다.
+**Claude Code 와 Codex 양쪽에서 돈다.** 둘 다 실측했다.
+
+파이썬 3 이 있어야 한다. **없으면 세션 시작에 그렇게 말하고 통과한다** — 전에는
+아무 말 없이 꺼졌고, 그 상태로는 설치돼 있는지조차 알 수 없었다. Node 는 qmd 를
+쓸 때만 필요하고, `_Meta/drift.py` 만 PyYAML 이 필요하다.
 
 **어느 조합에서 실제로 돌려 봤는지는 [docs/platforms.md](docs/platforms.md) 에
 있다.** 안 재본 칸은 비워 두지 않고 "안 재봤다"고 적어 두었다. 빈칸은 통과로

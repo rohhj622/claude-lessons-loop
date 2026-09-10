@@ -60,24 +60,36 @@ node 는 Homebrew(`/opt/homebrew/opt/node@24/bin/node`).
 
 ---
 
-## Codex 지원 — 아직 실측 없음 (2026-09-10)
+## Codex — 실측함 (2026-09-10)
 
-훅 파일 하나로 Claude Code 와 Codex 양쪽을 덮도록 맞췄다. **근거는 전부 공식
-문서이고 Codex 에서 실제로 돌려 본 적이 없다.**
+Codex CLI 0.153.4, macOS 26.6, Apple Silicon.
 
-맞춘 것.
+**훅이 실제로 돈다.** 로컬 경로를 마켓플레이스로 붙이고 설치한 뒤
+`codex exec` 로 세션을 띄워 모델에게 자기 컨텍스트를 옮겨 적게 했다. 세션 시작
+훅의 상시 교훈과 발화 훅의 회수 블록이 둘 다 그대로 나왔다.
 
-- 명령을 문자열로 적는다. Codex 는 `args` 배열을 문서에 두지 않았고, 공식 Claude
-  플러그인들도 전부 문자열을 쓴다.
-- `commandWindows` 를 넣었다. Claude 의 `--strict` 검증을 통과하는 것은 확인했다.
-- SessionStart matcher 는 `startup|clear` 다. 양쪽에 다 있는 값이다.
+```
+codex plugin marketplace add <이 저장소 경로>
+codex plugin add claude-lessons-loop@claude-lessons-loop
+```
 
-아직 안 맞춘 것.
+확인한 것.
 
-- **SessionEnd timeout 이 150초로 남아 있다.** Codex 상한은 3초다. 재색인을
-  분리해 띄우는 작업(다음 단계)까지 가야 맞는다.
-- 설정값 전달. Codex 는 `CLAUDE_PLUGIN_OPTION_*` 을 주지 않는다. 지금은
-  `LESSONS_VAULT` 같은 환경변수로만 설정할 수 있다.
+- **`.claude-plugin/marketplace.json` 을 Codex 가 그대로 받는다.** 따로 만들 필요가
+  없었다.
+- 훅 파일, 스킬 둘, 템플릿이 전부 설치 캐시로 넘어간다.
+- SessionStart · UserPromptSubmit · SessionEnd 셋 다 돈다. SessionEnd 의
+  `reason` 은 `other` 로 온다.
+- 명령 문자열 형식이 그대로 먹는다.
+
+걸린 것.
+
+- **Codex 는 훅마다 해시로 신뢰를 관리한다.** `~/.codex/config.toml` 의
+  `[hooks.state]` 에 훅별 `trusted_hash` 가 쌓인다. 처음 붙일 때 사용자가
+  승인해야 하고, 자동화에서는 `--dangerously-bypass-hook-trust` 를 준다.
+  **훅 파일을 고치면 해시가 바뀌므로 다시 승인해야 한다.**
+- 설정값 전달은 여전히 없다. `CLAUDE_PLUGIN_OPTION_*` 대신 환경변수나
+  설정 파일을 쓴다.
 
 ## `hooks/py.cmd` — 작성했으나 실측 없음
 

@@ -106,6 +106,19 @@ def collect():
     val, src = paths.qmd_timeout_with_source()
     rows.append(_row("  qmd_timeout", "{:g}초   ({})".format(val, src), True))
 
+    # 매니페스트 둘이 갈렸는지. 갈리면 한쪽 제품에서만 낡은 것이 돈다.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import manifests
+        bad = manifests.compare(manifests._read(manifests.CLAUDE),
+                                manifests._read(manifests.CODEX))
+        rows.append(_row("매니페스트 둘", "일치" if not bad else "; ".join(bad),
+                         not bad,
+                         "python hooks/manifests.py 로 확인한다."))
+    except Exception as e:
+        rows.append(_row("매니페스트 둘", "확인 못 함 — {}".format(e), False,
+                         "매니페스트 파일 둘이 다 있는지 본다."))
+
     return rows
 
 
