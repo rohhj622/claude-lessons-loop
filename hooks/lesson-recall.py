@@ -7,6 +7,7 @@
 import sys, json, re, os, subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import index_md  # noqa: E402
 from paths import VAULT, QMD, INDEX, NODE  # noqa: E402  Windows·WSL 양쪽에서 해석된다
 
 # ── 여기 셋이 조정 지점이다. 각자 자기 기록에 맞춰 고친다. ──
@@ -25,22 +26,12 @@ QMD_TIMEOUT = 12    # 초. hooks.json 의 훅 timeout(15s)보다 **작아야** �
 # 컬렉션에 따라 qmd://vault/Lessons/LSN-....md 또는 qmd://lessons/LSN-....md 로
 # 나오므로 파일명만 본다. INDEX.md는 이 패턴에 걸리지 않아 자연히 배제된다.
 LSN_RE = re.compile(r"(LSN-\d{4}-\d{2}-\d{2}-\d{3})\.md$")
-INDEX_ROW_RE = re.compile(
-    r"\|\s*\[(LSN-[\d-]+)\]\([^)]*\)\s*\|\s*([^|]+?)\s*\|\s*(\w+)?\s*\|")
 
 
 def lesson_titles():
-    """Lessons/INDEX.md 표에서 ID → (제목, impact) 맵을 만든다."""
-    titles = {}
-    try:
-        with open(os.path.join(VAULT, "Lessons", "INDEX.md"), encoding="utf-8") as f:
-            for line in f:
-                m = INDEX_ROW_RE.match(line)
-                if m:
-                    titles[m.group(1)] = (m.group(2), m.group(3) or "")
-    except OSError:
-        pass
-    return titles
+    """ID → (제목, 중요도) 맵. 표 읽기는 index_md 한 곳에서만 한다."""
+    rows, _ = index_md.load(VAULT)
+    return index_md.titles(rows)
 
 
 def stale_index_note():

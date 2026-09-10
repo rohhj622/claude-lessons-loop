@@ -8,13 +8,19 @@
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "session-start.py"
+            ],
             "timeout": 10
           },
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "tagscan.py"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "tagscan.py"
+            ],
             "timeout": 10
           }
         ]
@@ -26,7 +32,10 @@
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "lesson-recall.py"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "lesson-recall.py"
+            ],
             "timeout": 15
           }
         ]
@@ -38,7 +47,10 @@
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "session-end.py"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "session-end.py"
+            ],
             "timeout": 150
           }
         ]
