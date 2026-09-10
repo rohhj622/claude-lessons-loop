@@ -64,7 +64,7 @@ DEFAULT_REQUIRED = ("type", "project_type", "id", "aliases", "name", "status",
                     "priority", "program", "owner", "team", "start_date",
                     "updated", "tags")
 
-# program 의 상위 어휘. 새 갈래가 생기면 _Meta/스키마.md 와 설정 파일을 같이 고친다.
+# program 의 상위 어휘. 새 갈래가 생기면 _Meta/schema.md 와 설정 파일을 같이 고친다.
 DEFAULT_PROGRAMS = ("연구", "용역", "운영", "개인연구")
 
 

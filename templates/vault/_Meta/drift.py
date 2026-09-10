@@ -23,7 +23,7 @@ except ImportError:  # yaml 이 없으면 프론트매터를 못 읽는다 — �
 SKIP_DIRS = {'.git', '.claude', '.obsidian', '.trash', 'node_modules'}
 HISTORY_DIRS = ('Daily/',)            # 이력 동결. 검사 대상에서 뺀다
 TEMPLATE_DIRS = ('Templates/',)       # Templater 구문이 링크처럼 보인다
-EXAMPLE_FILES = ('_Meta/온톨로지 정의.md', '_Meta/스키마.md', 'CLAUDE.md')
+EXAMPLE_FILES = ('_Meta/ontology.md', '_Meta/schema.md', 'CLAUDE.md')
 # 위 셋의 링크는 규격을 보여 주는 예시라 실재하지 않아도 결함이 아니다(MySQL DB A·하네스 A 등).
 NORMATIVE = ('CLAUDE.md', '_Meta/', 'Runbooks/', 'People/')   # 검사 3 대상
 # 볼트 안 경로로 볼 최상위 폴더. Lessons/ 와 _Meta/ 만 이 플러그인이 만들고

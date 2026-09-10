@@ -42,7 +42,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" --quiet paths.py --vault
    이 단계를 빼면 겪지도 않은 일이 교훈으로 적힌다. 승인한 것만 노트가 된다.
 
 4. **승인된 것만 `<볼트>/Lessons/LSN-YYYY-MM-DD-NNN.md` 로 쓴다.**
-   형식은 `_Meta/스키마.md` 의 lesson 절을 따른다. 프론트매터에 `impact`
+   형식은 `_Meta/schema.md` 의 lesson 절을 따른다. 프론트매터에 `impact`
    (high / medium / low) 를 반드시 넣는다 — 세션 시작 훅이 이 값으로 거른다.
 
    **같은 실수가 다시 나오면 새 노트를 만들지 않는다.** 기존 노트에 `## 재현` 절을
