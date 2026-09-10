@@ -11,9 +11,17 @@
 GROUP="검증·판단 방법론"
 
 # LESSONS_VAULT 를 Windows 표기로 적어 뒀어도 WSL 에서 돌게 한다(그 반대도).
+# 두 번째 후보는 Windows 표기(C:/x)를 WSL 표기(/mnt/c/x)로 바꾼 것이다.
+# BSD sed 는 GNU 확장인 \L 을 모르고 /mnt/LC/x 를 만든다(맥에서 실측). tr 로 낮춘다.
 resolve() {
-    for c in "$1" "$(echo "$1" | sed -E 's|^([A-Za-z]):|/mnt/\L\1|')"; do
-        [ -d "$c" ] && echo "$c" && return
+    drive=$(echo "$1" | sed -n 's|^\([A-Za-z]\):.*|\1|p' | tr '[:upper:]' '[:lower:]')
+    if [ -n "$drive" ]; then
+        alt="/mnt/$drive$(echo "$1" | sed 's|^[A-Za-z]:||')"
+    else
+        alt=""
+    fi
+    for c in "$1" "$alt"; do
+        [ -n "$c" ] && [ -d "$c" ] && echo "$c" && return
     done
 }
 VAULT=$(resolve "$LESSONS_VAULT")

@@ -7,7 +7,7 @@
 import sys, json, re, os, subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import VAULT, QMD, INDEX  # noqa: E402  Windows·WSL 양쪽에서 해석된다
+from paths import VAULT, QMD, INDEX, NODE  # noqa: E402  Windows·WSL 양쪽에서 해석된다
 
 # ── 여기 셋이 조정 지점이다. 각자 자기 기록에 맞춰 고친다. ──
 MIN_SCORE = 0.35    # 노이즈 절단선. 실사용 뒤 조정
@@ -107,7 +107,7 @@ def main():
 
     try:
         result = subprocess.run(
-            ["node", QMD, "query", "-n", "20", "-c", "lessons",
+            [NODE, QMD, "query", "-n", "20", "-c", "lessons",
              "--format", "files", prompt],
             capture_output=True, timeout=QMD_TIMEOUT,
         )

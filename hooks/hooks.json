@@ -1,17 +1,20 @@
 {
+  "description": "교훈(LSN)을 세션 시작과 발화마다 컨텍스트로 되돌리고, 세션 끝에 검색 색인을 갱신한다.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
+        "matcher": "startup|clear",
         "hooks": [
           {
             "type": "command",
-            "command": ["sh", "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"],
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"],
             "timeout": 10
           },
           {
             "type": "command",
-            "command": ["sh", "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "tagscan.py"],
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "tagscan.py"],
             "timeout": 10
           }
         ]
@@ -22,7 +25,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ["sh", "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "lesson-recall.py"],
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "lesson-recall.py"],
             "timeout": 15
           }
         ]
@@ -33,7 +37,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ["sh", "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "session-end.py"],
+            "command": "sh",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/py.sh", "session-end.py"],
             "timeout": 150
           }
         ]

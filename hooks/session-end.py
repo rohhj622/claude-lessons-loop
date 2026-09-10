@@ -15,7 +15,7 @@ reason 값 5종(clear/resume/logout/prompt_input_exit/other)이 각각 어떤 �
 import sys, json, os, subprocess, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import VAULT, QMD, INDEX  # noqa: E402
+from paths import VAULT, QMD, INDEX, NODE  # noqa: E402
 
 LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session-end.log")
 QMD_TIMEOUT = 120   # 초. update+embed 실측 20초 안팎이나 콜드 여유를 둔다.
@@ -72,7 +72,7 @@ def main():
     why = "색인 파일 없음" if not idx else "Lessons 가 색인보다 최신"
     for step in ("update", "embed"):
         try:
-            r = subprocess.run(["node", QMD, step], capture_output=True,
+            r = subprocess.run([NODE, QMD, step], capture_output=True,
                                timeout=QMD_TIMEOUT)
         except Exception as e:
             log("reason={} {} 실패({}) — {}".format(reason, step, why, e))

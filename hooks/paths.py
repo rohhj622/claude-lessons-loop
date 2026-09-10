@@ -3,7 +3,7 @@
 설정은 환경변수 셋뿐이다.
 
   LESSONS_VAULT   (필수) 교훈 마크다운을 둘 폴더. 이 아래에 Lessons/ 가 있어야 한다.
-  QMD_BIN         (선택) qmd 진입점. 안 주면 표준 npm 전역 설치 위치를 훑는다.
+  QMD_BIN         (선택) qmd 진입점. 안 주면 아래 순서로 찾는다.
   QMD_INDEX       (선택) 색인 파일. 안 주면 ~/.cache/qmd/index.sqlite
 
 LESSONS_VAULT 가 없거나 그 폴더가 없으면 VAULT 는 빈 문자열이 되고, 훅들은
@@ -12,8 +12,21 @@ LESSONS_VAULT 가 없거나 그 폴더가 없으면 VAULT 는 빈 문자열이 �
 
 같은 디스크를 Windows(Git Bash)는 `C:/...`, WSL 은 `/mnt/c/...` 로 부른다.
 LESSONS_VAULT 를 한쪽 표기로만 적어 두어도 반대쪽에서 돌도록 여기서 바꿔 본다.
+
+qmd 탐색은 경로를 나열하지 않고 물어보는 쪽을 정본으로 삼는다. 나열식은
+Homebrew·nvm·fnm·volta·asdf·mise 가 각자 다른 곳에 깔아서 반드시 새는데,
+`npm root -g` 는 어느 방식이든 자기가 쓰는 자리를 답한다. 다만 subprocess 라
+발화마다 도는 훅에서 매번 돌리기는 아까우므로 순서를 이렇게 둔다.
+
+  1. QMD_BIN            사람이 직접 준 것이 언제나 이긴다
+  2. 캐시               이전에 찾아 둔 경로가 아직 살아 있으면 그대로
+  3. 나열식 후보        subprocess 없이 끝나는 흔한 경우
+  4. `npm root -g`      위가 다 새면 그때 물어본다. 찾으면 캐시에 남긴다
 """
 import os
+import subprocess
+
+_PKG = "/node_modules/@tobilu/qmd/bin/qmd"
 
 
 def _both_forms(p):
@@ -36,8 +49,46 @@ def _first_existing(candidates, default=""):
     return default
 
 
+_HOME = os.path.expanduser("~").replace("\\", "/")
+_ON_WSL = os.path.isdir("/mnt/c") and os.name == "posix"
+
 VAULT = _first_existing(_both_forms(os.environ.get("LESSONS_VAULT", "")))
 
+
+# ── 캐시 ────────────────────────────────────────────────────────────────
+# CLAUDE_PLUGIN_DATA 는 플러그인 갱신을 견디고 제거할 때 같이 지워지는 자리다.
+# 훅이 아닌 곳에서 부르면 없을 수 있고, 그때는 그냥 캐시 없이 간다.
+
+def _cache_path(name):
+    d = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+    return os.path.join(d, name) if d else ""
+
+
+def _cache_read(name):
+    p = _cache_path(name)
+    if not p:
+        return ""
+    try:
+        with open(p, encoding="utf-8") as f:
+            v = f.read().strip()
+    except OSError:
+        return ""
+    return v if v and os.path.exists(v) else ""
+
+
+def _cache_write(name, value):
+    p = _cache_path(name)
+    if not p or not value:
+        return
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(value)
+    except OSError:
+        pass  # 캐시는 있으면 좋은 것이지 없으면 안 되는 것이 아니다
+
+
+# ── qmd ─────────────────────────────────────────────────────────────────
 # qmd 는 `node <이 파일>` 로 부른다. 따라서 자바스크립트 진입점이어야 한다.
 # shutil.which 를 쓰면 안 된다 — Windows 에서 qmd.CMD 를 돌려주고,
 # `node qmd.CMD` 는 WinError 193 으로 조용히 실패한다.
@@ -45,22 +96,103 @@ VAULT = _first_existing(_both_forms(os.environ.get("LESSONS_VAULT", "")))
 # 플랫폼별 설치본을 먼저 본다. qmd 는 better-sqlite3(네이티브)를 쓰므로
 # Windows 에 깔린 것을 WSL node 로 부르면 "invalid ELF header" 로 죽는다.
 # 경로만 공유해서는 안 되고, 각 플랫폼에 설치본이 따로 있어야 한다.
-_HOME = os.path.expanduser("~").replace("\\", "/")
-_PKG = "/node_modules/@tobilu/qmd/bin/qmd"
+
 _WIN_QMD = [h + "/AppData/Roaming/npm" + _PKG for h in _both_forms(_HOME)]
 _NIX_QMD = [
-    "/usr/local/lib" + _PKG,
+    "/opt/homebrew/lib" + _PKG,      # macOS Apple Silicon, Homebrew
+    "/usr/local/lib" + _PKG,         # macOS Intel, Homebrew · 리눅스 기본
+    "/usr/lib" + _PKG,               # 배포판 패키지
     _HOME + "/.npm-global/lib" + _PKG,
-    _HOME + "/.nvm/versions/node/current/lib" + _PKG,
+    _HOME + "/.local/share/fnm" + _PKG,
+    _HOME + "/.volta/tools/image/node" + _PKG,
 ]
-_ON_WSL = os.path.isdir("/mnt/c") and os.name == "posix"
 
-QMD = os.environ.get("QMD_BIN", "") or _first_existing(
-    _NIX_QMD + _WIN_QMD if _ON_WSL else _WIN_QMD + _NIX_QMD)
 
-# WSL 에서 Windows 설치본밖에 없으면 못 쓴다 — 빈 값으로 만들어 조용히 건너뛰게 한다.
+def _nvm_candidates():
+    """nvm 은 `current` 심볼릭 링크를 기본으로 만들지 않는다. 실제 버전 폴더를 훑는다."""
+    base = _HOME + "/.nvm/versions/node"
+    try:
+        vers = sorted(os.listdir(base), reverse=True)
+    except OSError:
+        return []
+    return [base + "/" + v + "/lib" + _PKG for v in vers]
+
+
+def _npm_root_qmd():
+    """`npm root -g` 에게 전역 모듈 루트를 물어본다. 마지막 수단."""
+    for npm in ("npm", "npm.cmd"):
+        try:
+            r = subprocess.run([npm, "root", "-g"], capture_output=True, timeout=10)
+        except Exception:
+            continue
+        if r.returncode != 0:
+            continue
+        root = r.stdout.decode("utf-8", "replace").strip().replace("\\", "/")
+        if not root:
+            continue
+        cand = root + "/@tobilu/qmd/bin/qmd"
+        if os.path.exists(cand):
+            return cand
+    return ""
+
+
+def _find_qmd():
+    """돌려주는 값은 (경로, 어떻게 찾았는지). 못 찾으면 ("", 이유)."""
+    env = os.environ.get("QMD_BIN", "")
+    if env:
+        return (env, "QMD_BIN 환경변수")
+
+    cached = _cache_read("qmd-path")
+    if cached:
+        return (cached, "캐시")
+
+    listed = _NIX_QMD + _nvm_candidates() + _WIN_QMD if _ON_WSL \
+        else _WIN_QMD + _NIX_QMD + _nvm_candidates()
+    hit = _first_existing(listed)
+    if hit:
+        _cache_write("qmd-path", hit)
+        return (hit, "표준 설치 위치")
+
+    hit = _npm_root_qmd()
+    if hit:
+        _cache_write("qmd-path", hit)
+        return (hit, "npm root -g 조회")
+
+    return ("", "찾지 못함 — qmd 가 설치되지 않았거나 다른 노드 환경에 있다")
+
+
+QMD, QMD_HOW = _find_qmd()
+
+# WSL 에서 Windows 설치본밖에 없으면 못 쓴다 — 네이티브 모듈이 안 맞는다.
+# 빈 값으로 만들어 조용히 건너뛰게 한다.
 if _ON_WSL and QMD and "/AppData/Roaming/npm/" in QMD:
-    QMD = ""
+    QMD, QMD_HOW = "", "WSL 인데 Windows 설치본만 있다 — WSL 쪽에 따로 설치해야 한다"
+
+
+# ── node ────────────────────────────────────────────────────────────────
+# GUI 로 뜬 Claude Code 는 로그인 셸 PATH 를 못 물려받을 수 있다.
+# node 는 which 를 써도 된다 — Windows 에서도 node.exe 가 그대로 실행 가능하다.
+
+def _find_node():
+    cached = _cache_read("node-path")
+    if cached:
+        return cached
+    import shutil
+    hit = shutil.which("node") or ""
+    if not hit:
+        hit = _first_existing([
+            "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node",
+        ])
+    if hit:
+        hit = hit.replace("\\", "/")
+        _cache_write("node-path", hit)
+    return hit or "node"   # 마지막에는 PATH 에 걸기를 기대한다
+
+
+NODE = _find_node()
+
+
+# ── 색인 ────────────────────────────────────────────────────────────────
 
 INDEX = os.environ.get("QMD_INDEX", "") or _first_existing(
     [h + "/.cache/qmd/index.sqlite" for h in _both_forms(_HOME)],
@@ -68,7 +200,5 @@ INDEX = os.environ.get("QMD_INDEX", "") or _first_existing(
 
 
 if __name__ == "__main__":
-    for k in ("VAULT", "QMD", "INDEX"):
-        v = globals()[k]
-        print("{0:7} {1:<70} {2}".format(
-            k, v or "(없음)", "OK" if v and os.path.exists(v) else "MISSING"))
+    import doctor
+    raise SystemExit(doctor.main())
