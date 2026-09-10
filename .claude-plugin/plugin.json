@@ -3,8 +3,54 @@
   "displayName": "Lessons Loop",
   "description": "이번 세션의 실수를 다음 세션의 경고 문장으로 되돌려 주는 훅·스킬 묶음. 교훈을 마크다운으로 쌓고, 세션 시작과 발화마다 컨텍스트에 직접 주입한다.",
   "version": "0.1.0",
-  "author": { "name": "Hyunjin Roh" },
+  "author": {
+    "name": "Hyunjin Roh"
+  },
   "license": "MIT",
-  "keywords": ["lessons", "memory", "hooks", "qmd", "vault", "korean"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": [
+    "lessons",
+    "memory",
+    "hooks",
+    "qmd",
+    "vault",
+    "korean"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "userConfig": {
+    "vault_dir": {
+      "type": "directory",
+      "title": "기록 폴더",
+      "description": "교훈 마크다운을 둘 곳. 이 아래에 Lessons/ 가 생긴다. 비워 두면 플러그인은 아무것도 하지 않고 조용히 통과한다."
+    },
+    "index_group": {
+      "type": "string",
+      "title": "상시 주입 묶음 이름",
+      "description": "Lessons/INDEX.md 의 이 '## ' 묶음 안에서 중요도 high 인 행만 매 세션 자동으로 들어간다.",
+      "default": "검증·판단 방법론"
+    },
+    "min_score": {
+      "type": "number",
+      "title": "회수 유사도 하한",
+      "description": "이 점수 아래는 버린다. 올리면 정확해지고 덜 붙는다.",
+      "default": 0.35,
+      "min": 0,
+      "max": 1
+    },
+    "max_hits": {
+      "type": "number",
+      "title": "한 발화에 붙일 교훈 수",
+      "description": "많이 넣으면 컨텍스트를 먹는다.",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    },
+    "qmd_timeout": {
+      "type": "number",
+      "title": "검색 제한 시간 (초)",
+      "description": "이 안에 검색이 안 끝나면 그 발화는 교훈 없이 넘어간다. 훅 자체의 제한(15초)보다 작아야 한다.",
+      "default": 12,
+      "min": 1,
+      "max": 14
+    }
+  }
 }

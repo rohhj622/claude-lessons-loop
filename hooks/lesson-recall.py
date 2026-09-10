@@ -8,13 +8,17 @@ import sys, json, re, os, subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import index_md  # noqa: E402
-from paths import VAULT, QMD, INDEX, NODE  # noqa: E402  Windows·WSL 양쪽에서 해석된다
+from paths import VAULT, QMD, INDEX, NODE, option, qmd_timeout_with_source  # noqa: E402
 
-# ── 여기 셋이 조정 지점이다. 각자 자기 기록에 맞춰 고친다. ──
-MIN_SCORE = 0.35    # 노이즈 절단선. 실사용 뒤 조정
-MAX_HITS = 3
-MIN_PROMPT = 12     # 글자
-QMD_TIMEOUT = 12    # 초. hooks.json 의 훅 timeout(15s)보다 **작아야** 한다.
+# ── 조정 지점. plugin.json 의 userConfig 로 선언돼 있고, 플러그인을 켤 때 묻는다. ──
+# 이 파일을 직접 고치지 말 것 — /plugin update 가 덮어쓴다.
+MIN_SCORE = option("min_score", 0.35, cast=float)   # 노이즈 절단선
+MAX_HITS = int(option("max_hits", 3, cast=float))
+MIN_PROMPT = 12     # 글자. 이건 굳이 설정으로 뺄 값이 아니다
+QMD_TIMEOUT = qmd_timeout_with_source()[0]
+
+# 훅 자체의 제한보다 작아야 한다. 자르는 판단은 paths.py 한 곳에서 한다 —
+# doctor.py 도 같은 함수를 불러 **실제로 먹는 값**을 보여 준다.
                     # 20s 였을 때는 훅이 12s 에 먼저 죽어, 타임아웃 시 색인 신선도
                     # 경고를 내보내는 아래 폴백 경로가 실행될 기회가 없었다.
                     # 실측 왕복(2026-08-04, 서로 다른 프롬프트 5건): 웜 3.4s,

@@ -83,6 +83,18 @@ def collect():
             "검색 색인", paths.INDEX, False,
             "아직 없다. qmd 를 쓸 거라면 `qmd update && qmd embed` 를 한 번 돌린다."))
 
+    # 설정값은 값만 찍지 않고 **어디서 왔는지**를 같이 찍는다. 안 먹는 설정을
+    # 고쳐 놓고 먹는 줄 아는 것이 이 플러그인에서 제일 흔한 사고다.
+    for key, default, env, cast in (
+            ("index_group", "검증·판단 방법론", None, None),
+            ("min_score", 0.35, None, float),
+            ("max_hits", 3, None, float)):
+        val, src = paths.option_with_source(key, default, env, cast)
+        rows.append(_row("  " + key, "{}   ({})".format(val, src), True))
+
+    val, src = paths.qmd_timeout_with_source()
+    rows.append(_row("  qmd_timeout", "{:g}초   ({})".format(val, src), True))
+
     return rows
 
 

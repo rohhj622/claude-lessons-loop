@@ -21,9 +21,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import index_md  # noqa: E402
-from paths import VAULT  # noqa: E402
+from paths import VAULT, option  # noqa: E402
 
-GROUP = "검증·판단 방법론"
+GROUP = option("index_group", "검증·판단 방법론")
 IMPACT = "high"
 
 UNCONFIGURED = ("claude-lessons-loop: 기록 폴더가 설정되지 않아 교훈 회수가 꺼져 "
