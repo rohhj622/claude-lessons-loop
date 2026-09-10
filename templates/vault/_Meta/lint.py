@@ -238,21 +238,92 @@ def selftest():
     return 0 if ok else 1
 
 
+def check_lessons():
+    """교훈 노트 최소 검사. 이 플러그인은 교훈만으로도 돌기 때문에 여기가 본체다.
+
+    (위반건수, 검사한건수) 를 돌려준다. Lessons/ 가 없으면 (0, 0).
+    """
+    ldir = os.path.join(VAULT, "Lessons")
+    if not os.path.isdir(ldir):
+        return 0, 0
+
+    index = ""
+    try:
+        with open(os.path.join(ldir, "INDEX.md"), encoding="utf-8") as f:
+            index = f.read()
+    except OSError:
+        pass
+
+    names = sorted(n for n in os.listdir(ldir)
+                   if n.startswith("LSN-") and n.endswith(".md"))
+    bad = 0
+    for name in names:
+        stem = name[:-3]
+        problems = []
+        try:
+            with open(os.path.join(ldir, name), encoding="utf-8") as f:
+                fm = frontmatter(f.read())
+        except OSError as e:
+            problems.append("읽기 실패: %s" % e)
+            fm = {}
+
+        imp = fm.get("impact", "").strip().strip('"')
+        if not imp:
+            # 없으면 세션 시작 훅의 대상에서 조용히 빠진다. 조용한 탈락이라 잡는다.
+            problems.append("impact 없음 — 상시 주입 대상에서 조용히 빠진다")
+        elif imp not in ("high", "medium", "low"):
+            problems.append("impact 어휘 밖: %s (high|medium|low)" % imp)
+
+        if fm.get("id", "").strip().strip('"') != stem:
+            problems.append("id 와 파일명이 다르다: %s ≠ %s"
+                            % (fm.get("id", "(없음)"), stem))
+
+        if index and stem not in index:
+            # 훅이 제목과 중요도를 INDEX 에서 가져온다. 행이 없으면 회수돼도
+            # 제목 없이 나온다.
+            problems.append("Lessons/INDEX.md 에 행이 없다")
+
+        if problems:
+            bad += 1
+            print(stem)
+            for b in problems:
+                print("    " + b)
+    return bad, len(names)
+
+
 def main():
     if "--selftest" in sys.argv:
         return selftest()
 
+    lesson_bad, lesson_n = check_lessons()
+
+    pdir = os.path.join(VAULT, "Projects")
     notes = []
-    for root, dirs, files in os.walk(os.path.join(VAULT, "Projects")):
+    for root, dirs, files in os.walk(pdir):
         dirs[:] = [d for d in dirs if d != ".git"]
         for name in files:
             if name.startswith("_PRJ-") and name.endswith(".md"):
                 notes.append(os.path.join(root, name))
     notes.sort()
 
-    # 양성 대조: 0건은 '전부 통과'가 아니라 스캔 실패다
+    # 양성 대조를 두 경우로 가른다. 폴더가 아예 없으면 검사 대상이 아닌 것이고
+    # (이 플러그인은 교훈만으로도 돈다), 폴더는 있는데 0건이면 스캔 실패다.
     if not notes:
-        print("PRJ 노트를 한 건도 못 찾았다. lint.py 의 경로 설정 확인 필요.")
+        if not os.path.isdir(pdir):
+            if lesson_n == 0:
+                print("검사할 노트를 한 건도 못 찾았다. "
+                      "Lessons/ 도 Projects/ 도 없다 — 경로 설정 확인 필요.")
+                return 1
+            print()
+            if lesson_bad:
+                print("교훈 %d/%d 위반 · PRJ 노트 없음(검사 대상 아님)"
+                      % (lesson_bad, lesson_n))
+                return 1
+            print("교훈 %d/%d OK · PRJ 노트 없음(검사 대상 아님)"
+                  % (lesson_n, lesson_n))
+            return 0
+        print("Projects/ 는 있는데 PRJ 노트를 한 건도 못 찾았다. "
+              "lint.py 의 경로 설정 확인 필요.")
         return 1
 
     bad_count = 0
@@ -268,10 +339,12 @@ def main():
                 print("    " + b)
 
     print()
-    if bad_count:
-        print("%d/%d 위반" % (bad_count, len(notes)))
+    if bad_count or lesson_bad:
+        print("PRJ %d/%d 위반 · 교훈 %d/%d 위반"
+              % (bad_count, len(notes), lesson_bad, lesson_n))
         return 1
-    print("%d/%d OK" % (len(notes), len(notes)))
+    print("PRJ %d/%d OK · 교훈 %d/%d OK"
+          % (len(notes), len(notes), lesson_n, lesson_n))
     return 0
 
 
