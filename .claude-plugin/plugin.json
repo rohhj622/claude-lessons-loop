@@ -31,7 +31,7 @@
     "min_score": {
       "type": "number",
       "title": "회수 유사도 하한",
-      "description": "이 점수 아래는 버린다. 올리면 정확해지고 덜 붙는다.",
+      "description": "qmd 의미검색 결과의 하한. 이 점수 아래는 버린다. qmd 는 재순위를 거쳐 좋은 매치가 0.5~1.0 에 온다.",
       "default": 0.35,
       "min": 0,
       "max": 1
@@ -51,6 +51,14 @@
       "default": 12,
       "min": 1,
       "max": 14
+    },
+    "builtin_min_score": {
+      "type": "number",
+      "title": "기본 검색기 유사도 하한",
+      "description": "qmd 가 없을 때 쓰는 검색기의 하한. 글자 겹침이라 눈금이 달라서 값이 훨씬 작다 — 좋은 매치가 0.3 안팎이다. min_score 와 같은 값을 쓰면 안 된다.",
+      "default": 0.12,
+      "min": 0,
+      "max": 1
     }
   }
 }

@@ -68,10 +68,12 @@ def collect():
 
     if paths.QMD:
         rows.append(_row("qmd", "{}  ({})".format(paths.QMD, paths.QMD_HOW), True))
+        rows.append(_row("쓰는 검색기", "qmd 의미검색", True))
     else:
         rows.append(_row(
             "qmd", paths.QMD_HOW, False,
-            "없어도 기본 검색기로 돈다. 의미검색을 쓰려면 `npm i -g @tobilu/qmd`."))
+            "없어도 돈다. 의미검색을 쓰려면 `npm i -g @tobilu/qmd`."))
+        rows.append(_row("쓰는 검색기", "기본 검색기 (글자 겹침, 의존 없음)", True))
 
     rows.append(_row("node", paths.NODE,
                      os.path.exists(paths.NODE) or paths.NODE == "node"))
@@ -88,6 +90,7 @@ def collect():
     for key, default, env, cast in (
             ("index_group", "검증·판단 방법론", None, None),
             ("min_score", 0.35, None, float),
+            ("builtin_min_score", 0.12, None, float),
             ("max_hits", 3, None, float)):
         val, src = paths.option_with_source(key, default, env, cast)
         rows.append(_row("  " + key, "{}   ({})".format(val, src), True))

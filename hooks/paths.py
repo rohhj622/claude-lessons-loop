@@ -192,7 +192,11 @@ def _find_qmd():
     """돌려주는 값은 (경로, 어떻게 찾았는지). 못 찾으면 ("", 이유)."""
     env = os.environ.get("QMD_BIN", "")
     if env:
-        return (env, "QMD_BIN 환경변수")
+        # 사람이 준 값이라도 실물을 확인한다. 없는 경로를 그대로 들고 가면
+        # 검색이 조용히 빈 결과를 내고, 그 빈 결과가 "관련 교훈 없음"으로 읽힌다.
+        if os.path.exists(env):
+            return (env, "QMD_BIN 환경변수")
+        return ("", "QMD_BIN 이 가리키는 파일이 없다 — " + env)
 
     cached = _cache_read("qmd-path")
     if cached:
