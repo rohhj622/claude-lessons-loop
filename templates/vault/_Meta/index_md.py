@@ -34,7 +34,16 @@ _HEADER_HINT = 2
 
 
 def _cells(line):
-    """`| a | b |` 를 ['a', 'b'] 로. 양 끝의 빈 칸은 버린다."""
+    """`| a | b |` 를 ['a', 'b'] 로. 양 끝의 빈 칸은 버린다.
+
+    인용문(`>`) 안의 표는 표로 보지 않는다. 설명이나 경고를 인용문에 표로 적는 것은
+    흔한 문서 관례인데, 그 표의 칸 이름이 넷 중 둘만 겹쳐도 교훈 표로 오인해
+    problem 을 세웠다. session-start.py 는 problem 하나로 상시 교훈 주입을 통째로
+    포기하므로, 행 파싱이 멀쩡한 채로 교훈이 0건이 된다(외부 검증에서 재현됨,
+    2026-09-11). 교훈 표가 인용문 안에 들어갈 일은 없다.
+    """
+    if line.lstrip().startswith(">"):
+        return None
     if "|" not in line:
         return None
     parts = [c.strip() for c in line.strip().split("|")]
@@ -156,6 +165,17 @@ _GOOD = """# 교훈 목록
 | [LSN-2026-01-01-002](LSN-2026-01-01-002.md) | 도구가 도는지 본다 | medium | 2026-01-01 |
 """
 
+# 인용문 안 표. 칸 이름 넷 중 둘(제목·날짜)이 들어 있어 머리글로 오인되던 모양이다.
+_QUOTED_NOTE = """# 교훈 목록
+
+> 아래는 이 표를 읽는 곳을 적어 둔 설명이다. 교훈 표가 아니다.
+>
+> | 제목 | 소비자 | 날짜 |
+> |---|---|---|
+> | [LSN-2026-01-01-900](LSN-2026-01-01-900.md) | 세션 시작 훅 | 2026-01-01 |
+
+"""
+
 
 def selftest():
     cases = []
@@ -205,6 +225,17 @@ def selftest():
     prose = _GOOD + "\n본문에서 LSN-2026-01-01-777 을 언급만 한다.\n"
     rows, _ = parse(prose)
     case("본문 언급은 행이 아니다", not has_row(rows, "LSN-2026-01-01-777"))
+
+    # 인용문 안에 설명용 표를 두는 것은 흔한 문서 관례다. 그 표에 넷 중 둘 이상이
+    # 들어 있으면 전에는 교훈 표로 오인해 problem 을 세웠고, session-start.py 가
+    # 그 problem 하나로 상시 교훈 주입을 통째로 포기했다. 행 파싱은 정상이라
+    # 조용히 망가진다(외부 검증에서 재현됨, 2026-09-11).
+    quoted = _QUOTED_NOTE + _GOOD
+    rows, prob = parse(quoted)
+    case("인용문 안 표는 무시한다 → 문제 없음", prob is None)
+    case("인용문 안 표는 무시한다 → 아래 교훈 표는 그대로 읽는다", len(rows) == 2)
+    case("인용문 안 표는 무시한다 → 인용문 행은 교훈으로 안 센다",
+         not has_row(rows, "LSN-2026-01-01-900"))
 
     bad = 0
     for label, ok in cases:

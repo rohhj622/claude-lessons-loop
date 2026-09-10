@@ -119,8 +119,15 @@ def main():
         titles = lesson_titles()
         # 어느 검색기로 뽑았는지를 밝힌다. qmd 와 기본 검색기는 눈금이 달라서
         # 같은 0.4 가 다른 뜻이다. 밝히지 않으면 점수를 잘못 읽는다.
+        #
+        # 이 이름은 층이 셋으로 나뉜다. 노트 frontmatter 의 키는 `impact`,
+        # INDEX.md 표의 머리글은 `중요도`, 파서 내부 키는 다시 `impact` 다
+        # (index_md.py 의 HEADERS 가 그 번역 지점이다). 전에는 이 줄이
+        # "중요도=INDEX의 impact" 라고 적어 두 이름을 한 줄에 섞었고, 설치자가
+        # "플러그인은 impact 를 안 쓰는 것인가" 로 실제로 혼동했다. 여기서 내보내는
+        # 값은 INDEX 표의 중요도 칸에서 온 것이므로 그대로 적는다.
         out.append("이 프롬프트와 의미가 가까운 교훈 "
-                   "(검색: {}, 관련도 0~1, 중요도=INDEX의 impact. "
+                   "(검색: {}, 관련도 0~1, 중요도=INDEX 표의 중요도 칸. "
                    "참고용 — 무관하면 무시할 것):".format(
                        "qmd 의미검색" if backend == "qmd" else "기본 검색기(글자 겹침)"))
         for s, lsn_id in hits:
