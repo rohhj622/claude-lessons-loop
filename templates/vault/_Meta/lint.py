@@ -26,6 +26,34 @@ import sys
 
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
+def _find_index_md():
+    """INDEX.md 파서를 찾아 온다. 못 찾으면 None.
+
+    표를 읽는 코드는 hooks/index_md.py 한 벌뿐이다. 여기서 비슷한 것을 또 짜면
+    두 벌이 되고, 한쪽만 고치는 순간 조용히 갈린다. 그래서 **찾아 쓰거나, 못
+    찾으면 검사를 안 한다**. 약한 검사로 조용히 대체하지 않는다 — 그 결과는
+    "통과"로 보이는데 실제로는 아무것도 확인하지 않은 상태다.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    roots = [here]
+    for env in ("LESSONS_LOOP_HOOKS", "CLAUDE_PLUGIN_ROOT", "PLUGIN_ROOT"):
+        v = os.environ.get(env, "")
+        if v:
+            roots.append(os.path.join(v, "hooks") if env != "LESSONS_LOOP_HOOKS" else v)
+    for r in roots:
+        if os.path.isfile(os.path.join(r, "index_md.py")):
+            sys.path.insert(0, r)
+            try:
+                import index_md
+                return index_md
+            except Exception:
+                return None
+    return None
+
+
+INDEX_MD = _find_index_md()
+
 MAX_LINES = 12
 MAX_DEPTH = 1
 MAX_BOLD = 6
@@ -235,67 +263,142 @@ def selftest():
         if hit != should_fail:
             ok = False
         print("%s  %s" % ("OK " if hit == should_fail else "실패", label))
+
+    # ── 교훈 검사 ──────────────────────────────────────────────────────
+    # 이 플러그인은 교훈만으로도 도는데, 여기가 오래 비어 있었다. 손으로 한 번
+    # 확인하고 자가검사에 안 넣었더니 외부 검증에서 구멍 셋을 지적받았다.
+    if INDEX_MD is None:
+        ok = False
+        print("실패  교훈 검사 사례를 못 돌렸다 — index_md.py 를 못 찾는다")
+        return 0 if ok else 1
+
+    good_index = (
+        "## 검증·판단 방법론\n\n"
+        "| ID | 제목 | 중요도 | 날짜 |\n|---|---|---|---|\n"
+        "| [LSN-2026-01-01-001](LSN-2026-01-01-001.md) | 제목 | high | 2026-01-01 |\n")
+    rows, _ = INDEX_MD.parse(good_index)
+    stem = "LSN-2026-01-01-001"
+    full_fm = {"impact": "high", "id": stem}
+
+    lesson_cases = [
+        ("교훈 정상 → 통과해야 함", full_fm, rows, "ok", None, False),
+        ("impact 없음 → 걸려야 함",
+         {"id": stem}, rows, "ok", "impact 없음", True),
+        ("impact 어휘 밖 → 걸려야 함",
+         {"impact": "아주높음", "id": stem}, rows, "ok", "어휘 밖", True),
+        ("id 가 파일명과 다름 → 걸려야 함",
+         {"impact": "high", "id": "LSN-2026-01-01-999"}, rows, "ok", "파일명", True),
+        ("INDEX 에 행 없음 → 걸려야 함",
+         full_fm, [], "ok", "행이 없다", True),
+        ("INDEX 파일 자체가 없음 → 걸려야 함",
+         full_fm, [], "missing", "INDEX.md 가 없다", True),
+        ("INDEX 를 못 읽음 → 걸려야 함",
+         full_fm, [], "unreadable", "못 읽어", True),
+    ]
+    for label, fm, rws, state, needle, should_fail in lesson_cases:
+        probs = lesson_problems(fm, stem, rws, state)
+        hit = bool(probs) if needle is None else any(needle in b for b in probs)
+        if needle is None:
+            hit = bool(probs)
+        if hit != should_fail:
+            ok = False
+        print("%s  %s" % ("OK " if hit == should_fail else "실패", label))
+
+    # 본문 아무 데나 ID 가 적힌 것을 행으로 세면 안 된다. 전에는 부분 문자열로
+    # 봐서 통과했다.
+    prose_only = good_index.replace(
+        "| [LSN-2026-01-01-001](LSN-2026-01-01-001.md) | 제목 | high | 2026-01-01 |",
+        "") + "\n본문에서 LSN-2026-01-01-001 을 언급만 한다.\n"
+    prose_rows, _ = INDEX_MD.parse(prose_only)
+    hit = any("행이 없다" in b for b in lesson_problems(full_fm, stem, prose_rows, "ok"))
+    if not hit:
+        ok = False
+    print("%s  본문에만 ID → 걸려야 함" % ("OK " if hit else "실패"))
+
     return 0 if ok else 1
+
+
+def lesson_problems(fm, stem, rows, index_state):
+    """교훈 하나의 위반 목록. 파일을 안 읽는 순수 함수라 자가검사에서 부를 수 있다.
+
+    index_state 는 'ok' | 'missing' | 'unreadable' 중 하나다.
+    rows 는 index_md.parse 가 돌려준 표의 행 목록이다.
+    """
+    problems = []
+
+    imp = str(fm.get("impact", "")).strip().strip('"')
+    if not imp:
+        # 없으면 세션 시작 훅의 대상에서 조용히 빠진다. 조용한 탈락이라 잡는다.
+        problems.append("impact 없음 — 상시 주입 대상에서 조용히 빠진다")
+    elif imp not in ("high", "medium", "low"):
+        problems.append("impact 어휘 밖: %s (high|medium|low)" % imp)
+
+    if str(fm.get("id", "")).strip().strip('"') != stem:
+        problems.append("id 와 파일명이 다르다: %s ≠ %s"
+                        % (fm.get("id", "(없음)"), stem))
+
+    if index_state == "missing":
+        problems.append("Lessons/INDEX.md 가 없다 — 이 교훈은 제목 없이 회수된다")
+    elif index_state == "unreadable":
+        problems.append("Lessons/INDEX.md 를 못 읽어 행 확인을 못 했다")
+    elif not INDEX_MD.has_row(rows, stem):
+        # 부분 문자열이 아니라 **표의 행**에서 본다. 본문 아무 데나 ID 가 적혀
+        # 있어도 통과하던 것이 외부 검증에서 지적됐다.
+        problems.append("Lessons/INDEX.md 표에 행이 없다")
+
+    return problems
 
 
 def check_lessons():
     """교훈 노트 최소 검사. 이 플러그인은 교훈만으로도 돌기 때문에 여기가 본체다.
 
-    (위반건수, 검사한건수) 를 돌려준다. Lessons/ 가 없으면 (0, 0).
+    (위반건수, 검사한건수, 도구실패사유) 를 돌려준다. Lessons/ 가 없으면 (0, 0, None).
     """
     ldir = os.path.join(VAULT, "Lessons")
     if not os.path.isdir(ldir):
-        return 0, 0
+        return 0, 0, None
 
-    index = ""
-    try:
-        with open(os.path.join(ldir, "INDEX.md"), encoding="utf-8") as f:
-            index = f.read()
-    except OSError:
-        pass
+    if INDEX_MD is None:
+        return 0, 0, ("INDEX.md 파서(index_md.py)를 못 찾아 교훈 검사를 하지 "
+                      "못했다. _Meta/ 에 두거나 CLAUDE_PLUGIN_ROOT 를 준다.")
+
+    ipath = os.path.join(ldir, "INDEX.md")
+    if not os.path.isfile(ipath):
+        rows, index_state = [], "missing"
+    else:
+        rows, prob = INDEX_MD.load(VAULT)
+        index_state = "unreadable" if prob else "ok"
+        if prob:
+            print("Lessons/INDEX.md — " + prob)
 
     names = sorted(n for n in os.listdir(ldir)
                    if n.startswith("LSN-") and n.endswith(".md"))
     bad = 0
     for name in names:
         stem = name[:-3]
-        problems = []
         try:
             with open(os.path.join(ldir, name), encoding="utf-8") as f:
                 fm = frontmatter(f.read())
+            problems = lesson_problems(fm, stem, rows, index_state)
         except OSError as e:
-            problems.append("읽기 실패: %s" % e)
-            fm = {}
-
-        imp = fm.get("impact", "").strip().strip('"')
-        if not imp:
-            # 없으면 세션 시작 훅의 대상에서 조용히 빠진다. 조용한 탈락이라 잡는다.
-            problems.append("impact 없음 — 상시 주입 대상에서 조용히 빠진다")
-        elif imp not in ("high", "medium", "low"):
-            problems.append("impact 어휘 밖: %s (high|medium|low)" % imp)
-
-        if fm.get("id", "").strip().strip('"') != stem:
-            problems.append("id 와 파일명이 다르다: %s ≠ %s"
-                            % (fm.get("id", "(없음)"), stem))
-
-        if index and stem not in index:
-            # 훅이 제목과 중요도를 INDEX 에서 가져온다. 행이 없으면 회수돼도
-            # 제목 없이 나온다.
-            problems.append("Lessons/INDEX.md 에 행이 없다")
-
+            problems = ["읽기 실패: %s" % e]
         if problems:
             bad += 1
             print(stem)
             for b in problems:
                 print("    " + b)
-    return bad, len(names)
+    return bad, len(names), None
 
 
 def main():
     if "--selftest" in sys.argv:
         return selftest()
 
-    lesson_bad, lesson_n = check_lessons()
+    lesson_bad, lesson_n, tool_fail = check_lessons()
+    if tool_fail:
+        # 도구가 못 돈 것을 "위반 없음"으로 보고하지 않는다.
+        print("교훈 검사 실패 — " + tool_fail)
+        return 1
 
     pdir = os.path.join(VAULT, "Projects")
     notes = []
