@@ -12,7 +12,9 @@
 #
 # 기본은 말하는 쪽이다. 침묵이 필요한 곳에서만 --quiet 를 준다. 반대로 두면
 # 나중에 추가하는 스크립트가 기본으로 조용히 죽는다.
-DIR=$(dirname "$0")
+# dirname 을 부르지 않는다. 이 스크립트는 PATH 가 망가진 곳에서도 한마디는
+# 해야 하는데, 외부 명령을 쓰면 그 자리에서 같이 죽는다. 셸 내장으로 푼다.
+case "$0" in */*) DIR=${0%/*} ;; *) DIR=. ;; esac
 
 QUIET=0
 if [ "$1" = "--quiet" ]; then
@@ -25,11 +27,11 @@ if command -v python3 >/dev/null 2>&1; then
 elif command -v python >/dev/null 2>&1; then
     PY=python
 else
-    [ "$QUIET" = "0" ] && cat <<'MSG'
-claude-lessons-loop: 파이썬 3 을 못 찾아 교훈 회수가 통째로 꺼져 있다.
-  확인: python3 --version
-  없으면 설치하거나, 있는데 못 찾는 것이면 PATH 를 확인한다.
-MSG
+    if [ "$QUIET" = "0" ]; then
+        echo "claude-lessons-loop: 파이썬 3 을 못 찾아 교훈 회수가 통째로 꺼져 있다."
+        echo "  확인: python3 --version"
+        echo "  없으면 설치하거나, 있는데 못 찾는 것이면 PATH 를 확인한다."
+    fi
     exit 0   # 파이썬이 없다고 작업을 막지는 않는다
 fi
 
