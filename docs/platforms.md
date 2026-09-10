@@ -60,6 +60,31 @@ node 는 Homebrew(`/opt/homebrew/opt/node@24/bin/node`).
 
 ---
 
+## Codex 지원 — 아직 실측 없음 (2026-09-10)
+
+훅 파일 하나로 Claude Code 와 Codex 양쪽을 덮도록 맞췄다. **근거는 전부 공식
+문서이고 Codex 에서 실제로 돌려 본 적이 없다.**
+
+맞춘 것.
+
+- 명령을 문자열로 적는다. Codex 는 `args` 배열을 문서에 두지 않았고, 공식 Claude
+  플러그인들도 전부 문자열을 쓴다.
+- `commandWindows` 를 넣었다. Claude 의 `--strict` 검증을 통과하는 것은 확인했다.
+- SessionStart matcher 는 `startup|clear` 다. 양쪽에 다 있는 값이다.
+
+아직 안 맞춘 것.
+
+- **SessionEnd timeout 이 150초로 남아 있다.** Codex 상한은 3초다. 재색인을
+  분리해 띄우는 작업(다음 단계)까지 가야 맞는다.
+- 설정값 전달. Codex 는 `CLAUDE_PLUGIN_OPTION_*` 을 주지 않는다. 지금은
+  `LESSONS_VAULT` 같은 환경변수로만 설정할 수 있다.
+
+## `hooks/py.cmd` — 작성했으나 실측 없음
+
+Windows 용 파이썬 실행기다. macOS 에서 작성했고 **Windows 에서 한 번도 안 돌려
+봤다.** `py -3`, `python3`, `python` 순으로 찾고 없으면 한 줄을 내고 종료코드 0
+으로 끝난다. `py.sh` 와 같은 규칙이다.
+
 ## Windows · WSL 주의
 
 초판은 Windows 11 에서 만들었고 Git Bash 와 WSL 양쪽에서 돌았다고 되어 있다.
@@ -74,6 +99,11 @@ node 는 Homebrew(`/opt/homebrew/opt/node@24/bin/node`).
 - WSL 경로 변환의 `sed` 를 고쳤다. `C:/x` → `/mnt/c/x` 가 맥에서 나오는 것은
   확인했지만, 실제 WSL 에서 그 경로가 잡히는지는 못 봤다.
 - `npm root -g` 가 Git Bash 와 PowerShell 에서 같은 값을 주는지 확인 안 했다.
+- **훅 명령을 exec 형식에서 문자열 형식으로 되돌린 뒤 실제 세션에서 못 돌려 봤다.**
+  중첩 세션의 인증이 만료돼 확인이 막혔다. 확인한 것은 셋이다. 매니페스트 검증
+  통과, `hooks.json` 에 적힌 명령 문자열을 그대로 뽑아 실행했을 때 훅 넷이 정상,
+  공백이 든 경로에서도 정상. 남은 것은 Claude Code 가 그 문자열을 실제로
+  띄우는 단계뿐이고, 공식 플러그인들이 쓰는 형식과 같다.
 
 ---
 

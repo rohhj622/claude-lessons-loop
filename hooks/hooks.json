@@ -1,5 +1,5 @@
 {
-  "description": "교훈(LSN)을 세션 시작과 발화마다 컨텍스트로 되돌리고, 세션 끝에 검색 색인을 갱신한다.",
+  "description": "교훈(LSN)을 세션 시작과 발화마다 컨텍스트로 되돌린다. Claude Code 와 Codex 양쪽이 받는 형식으로만 적는다 — 명령은 문자열이고 args 배열을 쓰지 않는다.",
   "hooks": {
     "SessionStart": [
       {
@@ -7,22 +7,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
-              "session-start.py"
-            ],
-            "timeout": 10
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" session-start.py",
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\py.cmd\" session-start.py"
           },
           {
             "type": "command",
-            "command": "sh",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
-              "--quiet",
-              "tagscan.py"
-            ],
-            "timeout": 10
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" --quiet tagscan.py",
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\py.cmd\" --quiet tagscan.py"
           }
         ]
       }
@@ -32,13 +25,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
-              "--quiet",
-              "lesson-recall.py"
-            ],
-            "timeout": 15
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" --quiet lesson-recall.py",
+            "timeout": 15,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\py.cmd\" --quiet lesson-recall.py"
           }
         ]
       }
@@ -48,13 +37,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
-              "--quiet",
-              "session-end.py"
-            ],
-            "timeout": 150
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" --quiet session-end.py",
+            "timeout": 150,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\py.cmd\" --quiet session-end.py"
           }
         ]
       }
