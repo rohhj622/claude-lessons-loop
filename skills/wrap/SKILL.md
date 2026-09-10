@@ -5,7 +5,21 @@ description: 세션 마무리 — 이번 세션의 작업을 기록에 반영하
 
 # /wrap — 세션 마무리
 
-기록 폴더는 환경변수 `LESSONS_VAULT` 가 가리키는 곳이다. 이 아래에 `Lessons/` 가 있다.
+## 기록 폴더를 먼저 해석한다
+
+**`$LESSONS_VAULT` 를 그대로 쓰지 않는다.** 그 변수는 세 갈래 중 하나일 뿐이고,
+설정 파일로만 정한 사람은 비어 있다. 훅이 쓰는 것과 **같은 해석**을 부른다.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh" --quiet paths.py --vault
+```
+
+출력이 이 절차에서 쓸 폴더 경로다. 아래에서 `<볼트>` 라고 적은 자리에 넣는다.
+**빈 출력이면(종료코드 1) 거기서 멈춘다.** 폴더를 못 찾은 것이므로
+`/claude-lessons-loop:configure` 로 설정하라고 사용자에게 말한다. 짐작해서
+어딘가에 쓰지 않는다.
+
+---
 
 ## 목표
 
@@ -27,14 +41,14 @@ description: 세션 마무리 — 이번 세션의 작업을 기록에 반영하
 3. **교훈 후보는 파일을 만들기 전에 사용자에게 제목과 한 줄 요약으로 확인받는다.**
    이 단계를 빼면 겪지도 않은 일이 교훈으로 적힌다. 승인한 것만 노트가 된다.
 
-4. **승인된 것만 `Lessons/LSN-YYYY-MM-DD-NNN.md` 로 쓴다.**
+4. **승인된 것만 `<볼트>/Lessons/LSN-YYYY-MM-DD-NNN.md` 로 쓴다.**
    형식은 `_Meta/스키마.md` 의 lesson 절을 따른다. 프론트매터에 `impact`
    (high / medium / low) 를 반드시 넣는다 — 세션 시작 훅이 이 값으로 거른다.
 
    **같은 실수가 다시 나오면 새 노트를 만들지 않는다.** 기존 노트에 `## 재현` 절을
    날짜와 함께 덧붙인다. 조건과 경로가 다르면 원본을 지우지 않는다.
 
-5. **`Lessons/INDEX.md` 표에 한 줄을 더한다.** 칸 이름은 ID · 제목 · 중요도 ·
+5. **`<볼트>/Lessons/INDEX.md` 표에 한 줄을 더한다.** 칸 이름은 ID · 제목 · 중요도 ·
    날짜 넷이다. 훅이 머리글 이름으로 칸을 찾으므로 순서는 상관없지만, 이름을
    바꾸면 교훈이 안 붙는다.
 
@@ -51,8 +65,8 @@ description: 세션 마무리 — 이번 세션의 작업을 기록에 반영하
 6. **형식 검사를 돌린다.**
 
    ```bash
-   python "$LESSONS_VAULT/_Meta/lint.py" --selftest
-   python "$LESSONS_VAULT/_Meta/lint.py"
+   python "<볼트>/_Meta/lint.py" --selftest
+   python "<볼트>/_Meta/lint.py"
    ```
 
    `--selftest` 를 먼저 돌린다. 빈 결과가 "전건 통과"인지 "검사기 고장"인지는

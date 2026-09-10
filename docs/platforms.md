@@ -91,6 +91,20 @@ codex plugin add claude-lessons-loop@claude-lessons-loop
 - 설정값 전달은 여전히 없다. `CLAUDE_PLUGIN_OPTION_*` 대신 환경변수나
   설정 파일을 쓴다.
 
+## SessionEnd 최악 조건 (2026-09-10 실측)
+
+훅이 3초 안에 끝나야 하는데, **캐시가 없고 `npm root -g` 가 느리면 모듈을
+불러오는 것만으로 8.0초**가 걸렸다. 외부 검증에서 지적받고 재현한 값이다.
+"캐시가 있는 상태"에서만 재서 못 본 자리였다.
+
+원인은 qmd 탐색이 import 시점에 돌던 것이다. 지금은 처음 쓸 때 찾고,
+`npm root -g` 상한도 10초에서 3초로 낮췄다.
+
+| 조건 | 전 | 후 |
+|---|---|---|
+| 모듈 불러오기만 | 8.0초 | 0.007초 |
+| SessionEnd 훅 전체 | 3초 초과 | 0.038초 |
+
 ## `hooks/py.cmd` — 작성했으나 실측 없음
 
 Windows 용 파이썬 실행기다. macOS 에서 작성했고 **Windows 에서 한 번도 안 돌려

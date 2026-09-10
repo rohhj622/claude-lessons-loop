@@ -66,12 +66,14 @@ def collect():
             "교훈 목록", idx_md or "(기록 폴더 없음)", False,
             "Lessons/INDEX.md 가 없다. configure 로 템플릿을 복사한다."))
 
-    if paths.QMD:
-        rows.append(_row("qmd", "{}  ({})".format(paths.QMD, paths.QMD_HOW), True))
+    # 점검기는 사람이 부르는 것이라 느려도 된다. 조회까지 다 해 본다.
+    qmd_path, qmd_how = paths.qmd()
+    if qmd_path:
+        rows.append(_row("qmd", "{}  ({})".format(qmd_path, qmd_how), True))
         rows.append(_row("쓰는 검색기", "qmd 의미검색", True))
     else:
         rows.append(_row(
-            "qmd", paths.QMD_HOW, False,
+            "qmd", qmd_how, False,
             "없어도 돈다. 의미검색을 쓰려면 `npm i -g @tobilu/qmd`."))
         rows.append(_row("쓰는 검색기", "기본 검색기 (글자 겹침, 의존 없음)", True))
 

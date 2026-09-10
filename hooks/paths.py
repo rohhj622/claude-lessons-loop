@@ -25,8 +25,14 @@ Homebrew·nvm·fnm·volta·asdf·mise 가 각자 다른 곳에 깔아서 반드�
 """
 import os
 import subprocess
+import sys
 
 _PKG = "/node_modules/@tobilu/qmd/bin/qmd"
+
+# `npm root -g` 한 번의 상한. 10초였는데 느린 npm 을 흉내 내니 8초를 다 썼다.
+# 발화마다 도는 훅의 제한이 15초라 그 안에서 절반을 넘게 먹는다. 조회는
+# 마지막 수단이고 실패해도 기본 검색기가 받으므로 짧게 잡는다.
+NPM_TIMEOUT = 3
 
 
 def _both_forms(p):
@@ -218,7 +224,8 @@ def _npm_root_qmd():
     """`npm root -g` 에게 전역 모듈 루트를 물어본다. 마지막 수단."""
     for npm in ("npm", "npm.cmd"):
         try:
-            r = subprocess.run([npm, "root", "-g"], capture_output=True, timeout=10)
+            r = subprocess.run([npm, "root", "-g"], capture_output=True,
+                               timeout=NPM_TIMEOUT)
         except Exception:
             continue
         if r.returncode != 0:
@@ -232,7 +239,7 @@ def _npm_root_qmd():
     return ""
 
 
-def _find_qmd():
+def _find_qmd(allow_query=True):
     """돌려주는 값은 (경로, 어떻게 찾았는지). 못 찾으면 ("", 이유)."""
     env = os.environ.get("QMD_BIN", "")
     if env:
@@ -253,6 +260,9 @@ def _find_qmd():
         _cache_write("qmd-path", hit)
         return (hit, "표준 설치 위치")
 
+    if not allow_query:
+        return ("", "빠른 탐색에서 못 찾음 — npm 조회는 건너뛰었다")
+
     hit = _npm_root_qmd()
     if hit:
         _cache_write("qmd-path", hit)
@@ -261,12 +271,28 @@ def _find_qmd():
     return ("", "찾지 못함 — qmd 가 설치되지 않았거나 다른 노드 환경에 있다")
 
 
-QMD, QMD_HOW = _find_qmd()
+_QMD_CACHE = None
 
-# WSL 에서 Windows 설치본밖에 없으면 못 쓴다 — 네이티브 모듈이 안 맞는다.
-# 빈 값으로 만들어 조용히 건너뛰게 한다.
-if _ON_WSL and QMD and "/AppData/Roaming/npm/" in QMD:
-    QMD, QMD_HOW = "", "WSL 인데 Windows 설치본만 있다 — WSL 쪽에 따로 설치해야 한다"
+
+def qmd(allow_query=True):
+    """(경로, 어떻게 찾았는지). 처음 부를 때만 찾고 그 뒤로는 기억한다.
+
+    **모듈을 불러오는 것만으로는 절대 안 돈다.** 전에는 import 시점에 찾았는데,
+    나열식 후보가 다 새고 npm 이 느리면 거기서만 8초가 걸렸다(실측). SessionEnd
+    훅은 3초 안에 끝나야 하므로, 훅이 qmd 를 안 보는 경로에서는 아예 찾지
+    말아야 한다.
+
+    allow_query=False 를 주면 `npm root -g` 조회를 건너뛴다. 시간이 빠듯한
+    자리에서 쓴다 — 캐시와 표준 위치까지만 본다.
+    """
+    global _QMD_CACHE
+    if _QMD_CACHE is None or (allow_query and _QMD_CACHE[1].startswith("빠른 탐색")):
+        path, how = _find_qmd(allow_query=allow_query)
+        # WSL 에서 Windows 설치본밖에 없으면 못 쓴다 — 네이티브 모듈이 안 맞는다.
+        if _ON_WSL and path and "/AppData/Roaming/npm/" in path:
+            path, how = "", "WSL 인데 Windows 설치본만 있다 — WSL 쪽에 따로 설치해야 한다"
+        _QMD_CACHE = (path, how)
+    return _QMD_CACHE
 
 
 # ── node ────────────────────────────────────────────────────────────────
@@ -300,5 +326,14 @@ INDEX = os.environ.get("QMD_INDEX", "") or _first_existing(
 
 
 if __name__ == "__main__":
+    # 값 하나만 찍는 진입점. 스킬과 문서가 훅과 **같은 해석**을 쓰게 하려고 둔다.
+    # 전에는 스킬이 $LESSONS_VAULT 를 그대로 썼는데, 설정 파일로만 정한 사람은
+    # 그 변수가 비어 있어서 읽기 경로와 쓰기 경로가 갈렸다.
+    if "--vault" in sys.argv:
+        print(VAULT)
+        raise SystemExit(0 if VAULT else 1)
+    if "--config-file" in sys.argv:
+        print(config_file())
+        raise SystemExit(0)
     import doctor
     raise SystemExit(doctor.main())

@@ -23,7 +23,8 @@ reason 값 5종(clear/resume/logout/prompt_input_exit/other)이 각각 어떤 �
 import sys, json, os, subprocess, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import VAULT, QMD, INDEX, NODE  # noqa: E402
+import paths  # noqa: E402
+from paths import VAULT, INDEX  # noqa: E402
 
 LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session-end.log")
 QMD_TIMEOUT = 600   # 초. 분리된 프로세스가 쓰는 상한이다. 훅은 이걸 안 기다린다.
@@ -60,7 +61,16 @@ def lessons_mtime():
 
 
 def reindex(why):
-    """실제 재색인. 분리된 프로세스에서 돈다. 성패를 로그에만 남긴다."""
+    """실제 재색인. 분리된 프로세스에서 돈다. 성패를 로그에만 남긴다.
+
+    **qmd 를 찾는 것도 여기서 한다.** 부모가 찾으면 그 탐색 시간이 훅 제한을
+    먹는다 — 캐시가 없고 npm 이 느리면 그것만 8초였다(실측).
+    """
+    QMD, how = paths.qmd()
+    if not QMD:
+        log("분리 건너뜀 — qmd 없음 ({})".format(how))
+        return
+    NODE = paths.NODE
     for step in ("update", "embed"):
         try:
             r = subprocess.run([NODE, QMD, step], capture_output=True,
@@ -105,10 +115,9 @@ def main():
 
     if not VAULT:
         return  # 기록 폴더 미설정. 로그도 남기지 않는다
-    if not QMD:
-        log("reason={} 건너뜀 — qmd 실행 파일 없음".format(reason))
-        return
 
+    # **여기서 qmd 를 찾지 않는다.** 파일 시각만 보고 판단한다. qmd 탐색은
+    # 분리된 자식이 한다. 훅은 3초 안에 끝나야 한다(Codex 상한).
     idx, lsn = index_mtime(), lessons_mtime()
     if idx and lsn <= idx:
         log("reason={} 건너뜀 — 색인이 최신".format(reason))
