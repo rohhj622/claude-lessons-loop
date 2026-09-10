@@ -75,6 +75,14 @@ def collect():
             "없어도 돈다. 의미검색을 쓰려면 `npm i -g @tobilu/qmd`."))
         rows.append(_row("쓰는 검색기", "기본 검색기 (글자 겹침, 의존 없음)", True))
 
+    cfg = paths.config_file()
+    if not cfg:
+        rows.append(_row("설정 파일", "(플러그인 데이터 자리를 못 찾음)", True))
+    elif os.path.isfile(cfg):
+        rows.append(_row("설정 파일", cfg, True))
+    else:
+        rows.append(_row("설정 파일", cfg + "  (아직 없음)", True))
+
     rows.append(_row("node", paths.NODE,
                      os.path.exists(paths.NODE) or paths.NODE == "node"))
 

@@ -53,60 +53,6 @@ _HOME = os.path.expanduser("~").replace("\\", "/")
 _ON_WSL = os.path.isdir("/mnt/c") and os.name == "posix"
 
 
-# ── 설정값 ──────────────────────────────────────────────────────────────
-# 조정값을 훅 파일 안에 두면 안 된다. ${CLAUDE_PLUGIN_ROOT} 아래는 플러그인이
-# 소유하는 자리라 `/plugin update` 가 덮어쓴다. 사용자가 맞춰 놓은 값이 갱신
-# 한 번에 조용히 원래대로 돌아가고, 훅은 계속 exit 0 으로 끝나니 아무도 못 본다.
-#
-# 그래서 plugin.json 의 userConfig 로 선언한다. Claude Code 가 플러그인을 켤 때
-# 묻고, 값을 CLAUDE_PLUGIN_OPTION_<키를 대문자로> 로 훅 프로세스에 넣어 준다.
-# 환경변수를 직접 준 사람이 언제나 이긴다 — CI 와 임시 실행에서 쓸모가 있다.
-
-def option(key, default=None, env=None, cast=None):
-    """설정값 하나. (값, 어디서 왔는지) 가 아니라 값만 돌려준다.
-
-    출처까지 알고 싶으면 option_with_source 를 쓴다. doctor.py 가 그쪽을 쓴다.
-    """
-    return option_with_source(key, default, env, cast)[0]
-
-
-def option_with_source(key, default=None, env=None, cast=None):
-    for name, where in ((env, "환경변수 " + str(env)),
-                        ("CLAUDE_PLUGIN_OPTION_" + key.upper(), "플러그인 설정")):
-        if not name:
-            continue
-        raw = os.environ.get(name, "").strip()
-        if not raw:
-            continue
-        if cast is None:
-            return raw, where
-        try:
-            return cast(raw), where
-        except (TypeError, ValueError):
-            # 값이 망가졌다고 훅이 죽으면 안 된다. 기본값으로 간다.
-            return default, "{}의 값이 잘못돼 기본값을 쓴다".format(where)
-    return default, "기본값"
-
-
-# 훅 자체의 제한(hooks.json 의 timeout). 검색은 이보다 먼저 끝나야 한다 —
-# 훅이 먼저 죽으면 "색인이 낡았다"는 경고까지 같이 사라진다. 20초로 잡았다가
-# 실제로 그렇게 만든 적이 있다. 사용자가 크게 잡아도 여기서 자른다.
-RECALL_HOOK_TIMEOUT = 15
-_TIMEOUT_CAP = RECALL_HOOK_TIMEOUT - 3
-
-
-def qmd_timeout_with_source():
-    raw, src = option_with_source("qmd_timeout", 12.0, cast=float)
-    val = float(raw)
-    if val > _TIMEOUT_CAP:
-        return float(_TIMEOUT_CAP), "{}에 적힌 {:g}초가 상한을 넘어 잘랐다".format(
-            src, val)
-    return val, src
-
-
-VAULT = _first_existing(_both_forms(option("vault_dir", "", env="LESSONS_VAULT")))
-
-
 # ── 캐시 ────────────────────────────────────────────────────────────────
 # CLAUDE_PLUGIN_DATA 는 플러그인 갱신을 견디고 제거할 때 같이 지워지는 자리다.
 # 훅이 아닌 곳에서 부르면 없을 수 있고, 그때는 그냥 캐시 없이 간다.
@@ -138,6 +84,104 @@ def _cache_write(name, value):
             f.write(value)
     except OSError:
         pass  # 캐시는 있으면 좋은 것이지 없으면 안 되는 것이 아니다
+
+
+# ── 설정값 ──────────────────────────────────────────────────────────────
+# 조정값을 훅 파일 안에 두면 안 된다. ${CLAUDE_PLUGIN_ROOT} 아래는 플러그인이
+# 소유하는 자리라 `/plugin update` 가 덮어쓴다. 사용자가 맞춰 놓은 값이 갱신
+# 한 번에 조용히 원래대로 돌아가고, 훅은 계속 exit 0 으로 끝나니 아무도 못 본다.
+#
+# 그래서 plugin.json 의 userConfig 로 선언한다. Claude Code 가 플러그인을 켤 때
+# 묻고, 값을 CLAUDE_PLUGIN_OPTION_<키를 대문자로> 로 훅 프로세스에 넣어 준다.
+#
+# 다만 **Codex 는 그 환경변수를 주지 않는다**(문서 확인, 2026-09-10).
+# CLAUDE_PLUGIN_ROOT 와 CLAUDE_PLUGIN_DATA 는 호환으로 주지만 설정값은 안 준다.
+# 그래서 셋째 자리로 설정 파일을 둔다. 양쪽에서 다 읽히는 유일한 자리다.
+#
+#   환경변수 → 플러그인 설정 → ${CLAUDE_PLUGIN_DATA}/config.json → 기본값
+#
+# 환경변수를 직접 준 사람이 언제나 이긴다 — CI 와 임시 실행에서 쓸모가 있다.
+
+_CONFIG_CACHE = None
+
+
+def config_file():
+    """설정 파일 경로. 플러그인 데이터 자리를 못 찾으면 빈 문자열."""
+    return _cache_path("config.json")
+
+
+def _config():
+    """설정 파일을 한 번만 읽는다. 깨져 있으면 빈 dict — 훅이 죽으면 안 된다."""
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is None:
+        _CONFIG_CACHE = {}
+        p = config_file()
+        if p:
+            try:
+                import json
+                with open(p, encoding="utf-8") as f:
+                    v = json.load(f)
+                if isinstance(v, dict):
+                    _CONFIG_CACHE = v
+            except Exception:
+                pass
+    return _CONFIG_CACHE
+
+
+def option(key, default=None, env=None, cast=None):
+    """설정값 하나. (값, 어디서 왔는지) 가 아니라 값만 돌려준다.
+
+    출처까지 알고 싶으면 option_with_source 를 쓴다. doctor.py 가 그쪽을 쓴다.
+    """
+    return option_with_source(key, default, env, cast)[0]
+
+
+def option_with_source(key, default=None, env=None, cast=None):
+    for name, where in ((env, "환경변수 " + str(env)),
+                        ("CLAUDE_PLUGIN_OPTION_" + key.upper(), "플러그인 설정")):
+        if not name:
+            continue
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            continue
+        if cast is None:
+            return raw, where
+        try:
+            return cast(raw), where
+        except (TypeError, ValueError):
+            # 값이 망가졌다고 훅이 죽으면 안 된다. 기본값으로 간다.
+            return default, "{}의 값이 잘못돼 기본값을 쓴다".format(where)
+
+    # 셋째: 설정 파일. Codex 에서는 환경변수 다음으로 유일한 자리다.
+    raw = _config().get(key)
+    if raw not in (None, ""):
+        if cast is None:
+            return str(raw), "설정 파일"
+        try:
+            return cast(raw), "설정 파일"
+        except (TypeError, ValueError):
+            return default, "설정 파일의 값이 잘못돼 기본값을 쓴다"
+
+    return default, "기본값"
+
+
+# 훅 자체의 제한(hooks.json 의 timeout). 검색은 이보다 먼저 끝나야 한다 —
+# 훅이 먼저 죽으면 "색인이 낡았다"는 경고까지 같이 사라진다. 20초로 잡았다가
+# 실제로 그렇게 만든 적이 있다. 사용자가 크게 잡아도 여기서 자른다.
+RECALL_HOOK_TIMEOUT = 15
+_TIMEOUT_CAP = RECALL_HOOK_TIMEOUT - 3
+
+
+def qmd_timeout_with_source():
+    raw, src = option_with_source("qmd_timeout", 12.0, cast=float)
+    val = float(raw)
+    if val > _TIMEOUT_CAP:
+        return float(_TIMEOUT_CAP), "{}에 적힌 {:g}초가 상한을 넘어 잘랐다".format(
+            src, val)
+    return val, src
+
+
+VAULT = _first_existing(_both_forms(option("vault_dir", "", env="LESSONS_VAULT")))
 
 
 # ── qmd ─────────────────────────────────────────────────────────────────

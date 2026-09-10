@@ -38,7 +38,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/py.sh\" --quiet session-end.py",
-            "timeout": 150,
+            "timeout": 3,
             "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\py.cmd\" --quiet session-end.py"
           }
         ]
