@@ -19,6 +19,7 @@
             "command": "sh",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "--quiet",
               "tagscan.py"
             ],
             "timeout": 10
@@ -34,6 +35,7 @@
             "command": "sh",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "--quiet",
               "lesson-recall.py"
             ],
             "timeout": 15
@@ -49,6 +51,7 @@
             "command": "sh",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/py.sh",
+              "--quiet",
               "session-end.py"
             ],
             "timeout": 150
