@@ -26,10 +26,19 @@ TEMPLATE_DIRS = ('Templates/',)       # Templater 구문이 링크처럼 보인�
 EXAMPLE_FILES = ('_Meta/온톨로지 정의.md', '_Meta/스키마.md', 'CLAUDE.md')
 # 위 셋의 링크는 규격을 보여 주는 예시라 실재하지 않아도 결함이 아니다(MySQL DB A·하네스 A 등).
 NORMATIVE = ('CLAUDE.md', '_Meta/', 'Runbooks/', 'People/')   # 검사 3 대상
-VAULT_TOP = ('_Meta/', 'Projects/', 'People/', 'Runbooks/', 'Lessons/', 'Templates/',
+# 볼트 안 경로로 볼 최상위 폴더. Lessons/ 와 _Meta/ 만 이 플러그인이 만들고
+# 나머지는 같이 쓰는 사람의 폴더다. 없으면 그냥 안 걸린다.
+VAULT_TOP = ('_Meta/', 'Lessons/', 'Projects/', 'People/', 'Runbooks/', 'Templates/',
              'Components/', 'Technologies/', 'Organizations/', 'Glossary/', 'Daily/', '_Attachments/')
+# 'Claude' 는 스키마가 시키는 표기다 — 노트를 에이전트가 썼으면 author 에
+# "[[Claude]]" 를 넣으라고 되어 있다. 그 이름의 노트를 따로 두라는 뜻이 아니다.
+# 갓 만든 볼트가 첫날부터 잡음을 내면 사람이 이 도구를 통째로 무시하게 된다.
 PLACEHOLDERS = {'이름', '링크', '노트명', '위키링크', 'LSN-...', 'Lessons', 'Projects', 'prj', 'PRJ-XXXX',
-                'ISS-XXXX', '상위 조직', '담당자', '작성자'}
+                'ISS-XXXX', '상위 조직', '담당자', '작성자', 'Claude'}
+
+# 자리표시자가 박힌 경로는 실재하지 않는 것이 정상이다. 스키마 문서가 파일 이름
+# 규격을 보여 줄 때 쓴다.
+PLACEHOLDER_PATH = re.compile(r'YYYY|MM-DD|NNN|XXXX|<[^>]+>')
 TOTAL_PATTERNS = [
     re.compile(r'\d+\s*곳\s*중\s*\d+\s*곳'),
     re.compile(r'\d+\s*/\s*\d+\s*(배치|건|곳)'),
@@ -44,9 +53,17 @@ DELETED_RE = re.compile(r'지웠|지운|삭제|폐지|없앴|제거')  # 삭제 
 
 
 def find_vault(start):
+    """볼트 루트를 위로 올라가며 찾는다.
+
+    전에는 루트에 CLAUDE.md 가 있어야 한다고 봤다. 교훈만 쓰는 볼트에는 그 파일이
+    없어서 못 찾았고, 그 상태로 자가검사가 '있는 노트(CLAUDE)가 안 풀린다' 를
+    내며 검사기가 통째로 멈췄다. 볼트를 볼트이게 하는 것은 _Meta/ 와 Lessons/ 다.
+    """
     d = os.path.abspath(start)
     while True:
-        if os.path.isfile(os.path.join(d, 'CLAUDE.md')) and os.path.isdir(os.path.join(d, '_Meta')):
+        if os.path.isdir(os.path.join(d, '_Meta')) and (
+                os.path.isdir(os.path.join(d, 'Lessons'))
+                or os.path.isfile(os.path.join(d, 'CLAUDE.md'))):
             return d
         p = os.path.dirname(d)
         if p == d:
@@ -153,6 +170,8 @@ def check_paths(v):
             p = m.group(1).strip().replace('\\', '/')
             if '*' in p or '<' in p or '{' in p or ':' in p or p.startswith(('~', '/', '@')):
                 continue
+            if PLACEHOLDER_PATH.search(p):
+                continue        # 규격을 보여 주는 자리표시자다
             if not (p.startswith(VAULT_TOP) or p in ('CLAUDE.md',)):
                 continue                       # 코드 저장소 경로다
             if p in v.files:
@@ -199,8 +218,13 @@ def self_test(v):
     ok = True
     if v.resolve('__이런_노트는_없다__'):
         ok = False; print('자가검사 실패: 없는 노트가 풀린다')
-    if not v.resolve('CLAUDE'):
-        ok = False; print('자가검사 실패: 있는 노트(CLAUDE)가 안 풀린다')
+    # 볼트에 반드시 있는 것으로 대조한다. 전에는 CLAUDE 로 쟀는데 교훈만 쓰는
+    # 볼트에는 그 노트가 없어서, 멀쩡한 볼트에서 검사기가 자기를 고장났다고 했다.
+    anchor = next((os.path.basename(r)[:-3] for r in sorted(v.notes)), '')
+    if not anchor:
+        ok = False; print('자가검사 실패: 볼트에서 .md 를 한 건도 못 읽었다')
+    elif not v.resolve(anchor):
+        ok = False; print('자가검사 실패: 있는 노트(%s)가 안 풀린다' % anchor)
     if not any(p.search('배치는 34곳 중 30곳이다') for p in TOTAL_PATTERNS):
         ok = False; print('자가검사 실패: 총계 패턴이 표본을 못 잡는다')
     if '_Meta/__없는파일__.md' in v.files:

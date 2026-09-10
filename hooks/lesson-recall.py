@@ -7,13 +7,21 @@
 import sys, json, re, os, subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from paths import VAULT, QMD, INDEX  # noqa: E402  Windows·WSL 양쪽에서 해석된다
+import index_md  # noqa: E402
+import search  # noqa: E402
+import paths  # noqa: E402
+from paths import VAULT, INDEX, NODE, option, qmd_timeout_with_source  # noqa: E402
 
-# ── 여기 셋이 조정 지점이다. 각자 자기 기록에 맞춰 고친다. ──
-MIN_SCORE = 0.35    # 노이즈 절단선. 실사용 뒤 조정
-MAX_HITS = 3
-MIN_PROMPT = 12     # 글자
-QMD_TIMEOUT = 12    # 초. hooks.json 의 훅 timeout(15s)보다 **작아야** 한다.
+# ── 조정 지점. plugin.json 의 userConfig 로 선언돼 있고, 플러그인을 켤 때 묻는다. ──
+# 이 파일을 직접 고치지 말 것 — /plugin update 가 덮어쓴다.
+MIN_SCORE = option("min_score", 0.35, cast=float)           # qmd 눈금
+BUILTIN_MIN_SCORE = option("builtin_min_score", 0.12, cast=float)  # 겹침 눈금
+MAX_HITS = int(option("max_hits", 3, cast=float))
+MIN_PROMPT = 12     # 글자. 이건 굳이 설정으로 뺄 값이 아니다
+QMD_TIMEOUT = qmd_timeout_with_source()[0]
+
+# 훅 자체의 제한보다 작아야 한다. 자르는 판단은 paths.py 한 곳에서 한다 —
+# doctor.py 도 같은 함수를 불러 **실제로 먹는 값**을 보여 준다.
                     # 20s 였을 때는 훅이 12s 에 먼저 죽어, 타임아웃 시 색인 신선도
                     # 경고를 내보내는 아래 폴백 경로가 실행될 기회가 없었다.
                     # 실측 왕복(2026-08-04, 서로 다른 프롬프트 5건): 웜 3.4s,
@@ -25,22 +33,12 @@ QMD_TIMEOUT = 12    # 초. hooks.json 의 훅 timeout(15s)보다 **작아야** �
 # 컬렉션에 따라 qmd://vault/Lessons/LSN-....md 또는 qmd://lessons/LSN-....md 로
 # 나오므로 파일명만 본다. INDEX.md는 이 패턴에 걸리지 않아 자연히 배제된다.
 LSN_RE = re.compile(r"(LSN-\d{4}-\d{2}-\d{2}-\d{3})\.md$")
-INDEX_ROW_RE = re.compile(
-    r"\|\s*\[(LSN-[\d-]+)\]\([^)]*\)\s*\|\s*([^|]+?)\s*\|\s*(\w+)?\s*\|")
 
 
 def lesson_titles():
-    """Lessons/INDEX.md 표에서 ID → (제목, impact) 맵을 만든다."""
-    titles = {}
-    try:
-        with open(os.path.join(VAULT, "Lessons", "INDEX.md"), encoding="utf-8") as f:
-            for line in f:
-                m = INDEX_ROW_RE.match(line)
-                if m:
-                    titles[m.group(1)] = (m.group(2), m.group(3) or "")
-    except OSError:
-        pass
-    return titles
+    """ID → (제목, 중요도) 맵. 표 읽기는 index_md 한 곳에서만 한다."""
+    rows, _ = index_md.load(VAULT)
+    return index_md.titles(rows)
 
 
 def stale_index_note():
@@ -84,9 +82,12 @@ def main():
         return
     prompt = (data.get("prompt") or "").strip()
 
-    # 설정이 없으면 아무것도 하지 않는다. 설치만 하고 LESSONS_VAULT 를 안 정한
-    # 사람의 세션을 훅이 방해해서는 안 된다.
-    if not VAULT or not QMD:
+    # 기록 폴더가 없으면 아무것도 하지 않는다. 설치만 하고 설정을 안 한 사람의
+    # 세션을 훅이 방해해서는 안 된다.
+    #
+    # qmd 는 여기서 보지 않는다. 없으면 기본 검색기가 받는다. 전에는 이 줄이
+    # `not VAULT or not QMD` 여서, qmd 가 없으면 회수가 통째로 꺼졌다.
+    if not VAULT:
         return
 
     # 가드: 서브에이전트 / 슬래시 명령 / 너무 짧은 프롬프트
@@ -105,50 +106,35 @@ def main():
         if lines:
             sys.stdout.buffer.write(("\n".join(lines) + "\n").encode("utf-8"))
 
-    try:
-        result = subprocess.run(
-            ["node", QMD, "query", "-n", "20", "-c", "lessons",
-             "--format", "files", prompt],
-            capture_output=True, timeout=QMD_TIMEOUT,
-        )
-    except Exception:
-        # 타임아웃·실행 실패. 프롬프트는 막지 않되, 낡은 색인은 알린다.
-        emit([stale] if stale else [])
-        return
+    # 여기서 처음 qmd 를 찾는다. 못 찾으면 기본 검색기가 받는다.
+    qmd_path, _ = paths.qmd()
+    backend, raw, problem = search.search(
+        VAULT, prompt, MAX_HITS, node=NODE, qmd=qmd_path, timeout=QMD_TIMEOUT)
 
-    hits = []
-    for line in result.stdout.decode("utf-8", "replace").splitlines():
-        parts = line.split(",", 2)
-        if len(parts) != 3:
-            continue
-        _, score, path = parts
-        m = LSN_RE.search(path.strip())
-        if not m:
-            continue
-        try:
-            s = float(score)
-        except ValueError:
-            continue
-        if s < MIN_SCORE:
-            continue
-        hits.append((s, m.group(1)))
-        if len(hits) >= MAX_HITS:
-            break
+    floor = MIN_SCORE if backend == "qmd" else BUILTIN_MIN_SCORE
+    hits = [(s, i) for s, i in raw if s >= floor][:MAX_HITS]
+
     out = []
     if hits:
         titles = lesson_titles()
+        # 어느 검색기로 뽑았는지를 밝힌다. qmd 와 기본 검색기는 눈금이 달라서
+        # 같은 0.4 가 다른 뜻이다. 밝히지 않으면 점수를 잘못 읽는다.
         out.append("이 프롬프트와 의미가 가까운 교훈 "
-                   "(관련도=검색 매칭 점수 0~1, 중요도=INDEX의 impact. "
-                   "참고용 — 무관하면 무시할 것):")
+                   "(검색: {}, 관련도 0~1, 중요도=INDEX의 impact. "
+                   "참고용 — 무관하면 무시할 것):".format(
+                       "qmd 의미검색" if backend == "qmd" else "기본 검색기(글자 겹침)"))
         for s, lsn_id in hits:
             title, impact = titles.get(lsn_id, ("(제목 조회 실패)", ""))
             tag = "[관련도 {:.2f}".format(s)
             tag += " · 중요도 {}]".format(impact) if impact else "]"
             out.append("- {} [[{}]] {}".format(tag, lsn_id, title))
-    if stale:
-        if out:
-            out.append("")
-        out.append(stale)
+    # 왜 이렇게 됐는지를 남긴다. 전에는 유사도 미달인지 타임아웃인지 구분이
+    # 안 돼서, 안 붙은 발화 204건의 원인을 끝내 못 갈랐다.
+    for note in (problem, stale if backend == "qmd" else None):
+        if note:
+            if out:
+                out.append("")
+            out.append("⚠ " + note if note is problem else note)
     emit(out)
 
 
