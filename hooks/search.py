@@ -101,11 +101,36 @@ class QmdFailed(Exception):
     pass
 
 
+# qmd 는 맨 질의를 받으면 **생성 모델로 질의를 19~20개로 불린다**(확장).
+# 그 단계가 비용의 대부분이다 — 새 질의 10~11초, 확장을 건너뛰면 3.5초(실측
+# 2026-09-11, RTX 5070). 훅은 발화마다 새 질의를 보내므로 캐시가 맞는 일이
+# 없어 늘 10초대였고, 12초 상한 바로 아래에 붙어 있었다.
+#
+# 더 나쁜 것은 GPU 경합이다. 확장 경로는 모델 셋(생성·임베딩·재순위)을 띄워
+# VRAM 을 물고, 여럿이 겹치면 재순위 컨텍스트 생성에서 깨진다. 같은 날 동시
+# 실행으로 재현한 것 — 4개에서 rc=1, 8개에서 ggml 이 CUDA 오류로 abort 했다
+# (rc=3221226505). `vec:` 로 부르면 같은 부하에서 4개까지 전원 성공했다.
+#
+# 대가는 재현율이다. 확장이 9건 찾을 때 `vec:` 는 6건을 찾았다. 훅은 상위
+# 3건만 쓰므로, 12초를 넘겨 글자 겹침으로 떨어지는 것보다 낫다고 봤다.
+_TYPED_PREFIX = "vec: "
+
+
+def _as_typed_query(query):
+    """질의를 qmd 의 타입 지정 질의서 한 줄로 만든다.
+
+    문법이 **한 줄에 따옴표가 짝을 이룰 것**을 요구한다. 발화는 여러 줄이고
+    따옴표가 홀수로 남기도 해서, 개행은 공백으로 접고 큰따옴표는 뺀다.
+    """
+    one_line = " ".join(query.split())
+    return _TYPED_PREFIX + one_line.replace('"', " ")
+
+
 def qmd_search(node, qmd, query, limit, timeout):
     """qmd 의미검색. 실패하면 예외를 올린다 — 호출부가 폴백을 정한다."""
     r = subprocess.run(
         [node, qmd, "query", "-n", str(limit * 7), "-c", "lessons",
-         "--format", "files", query],
+         "--format", "files", _as_typed_query(query)],
         capture_output=True, timeout=timeout, creationflags=NO_WINDOW)
     # 종료코드를 안 보면 실패가 "결과 없음"과 똑같이 생긴다. 컬렉션 이름이
     # 틀렸거나 색인이 깨졌을 때가 정확히 그 모양이다.
