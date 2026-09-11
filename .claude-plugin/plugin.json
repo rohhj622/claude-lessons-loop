@@ -15,7 +15,6 @@
     "vault",
     "korean"
   ],
-  "hooks": "./hooks/hooks.json",
   "userConfig": {
     "vault_dir": {
       "type": "directory",

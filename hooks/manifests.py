@@ -24,6 +24,9 @@ CODEX = os.path.join(ROOT, "plugin.json")
 SHARED = ("name", "version", "description", "license")
 
 
+STD_HOOKS = "./hooks/hooks.json"
+
+
 def compare(a, b):
     """(어긋난 항목 목록). 둘 다 dict 여야 한다."""
     bad = []
@@ -33,9 +36,22 @@ def compare(a, b):
             bad.append("{}: Claude={!r} · Codex={!r}".format(k, av, bv))
 
     # 훅 파일이 서로 다른 것을 가리키면 한쪽 제품만 다른 훅으로 돈다.
+    #
+    # Claude Code 는 hooks/hooks.json 을 **자동으로** 읽는다. 매니페스트가 그것을
+    # 다시 가리키면 "이미 읽은 파일"이라며 훅 로딩 전체가 에러로 끝난다(실측
+    # 2026-09-11, /plugin 화면에 Duplicate hooks file detected). 그래서 Claude
+    # 쪽은 비워 두는 것이 정상이고, 표준 경로 밖의 파일을 더 얹을 때만 적는다.
+    # Codex 는 자동으로 읽지 않으므로 표준 경로를 명시해야 한다.
     ah = a.get("hooks")
     bh = (b.get("extensions", {}).get("com.openai", {}) or {}).get("hooks")
-    if ah and bh and ah != bh:
+    if ah is None:
+        if bh != STD_HOOKS:
+            bad.append("Claude 는 훅 경로를 비워 자동 로드를 쓰는데 "
+                       "Codex={!r} 라 표준 경로가 아니다".format(bh))
+    elif ah == STD_HOOKS:
+        bad.append("Claude 매니페스트가 표준 훅 경로를 다시 가리킨다 — "
+                   "자동 로드와 겹쳐 훅이 통째로 안 실린다")
+    elif bh != ah:
         bad.append("hooks 경로: Claude={!r} · Codex={!r}".format(ah, bh))
     return bad
 
@@ -66,8 +82,7 @@ def main():
 
 def selftest():
     """검사기가 어긋난 것을 정말 잡는지 본다."""
-    base = {"name": "x", "version": "1.0.0", "description": "d", "license": "MIT",
-            "hooks": "./hooks/hooks.json"}
+    base = {"name": "x", "version": "1.0.0", "description": "d", "license": "MIT"}
     codex = {"name": "x", "version": "1.0.0", "description": "d", "license": "MIT",
              "extensions": {"com.openai": {"hooks": "./hooks/hooks.json"}}}
     cases = [
@@ -78,9 +93,11 @@ def selftest():
          base, dict(codex, name="y"), True),
         ("설명이 다르면 → 걸려야 함",
          base, dict(codex, description="다름"), True),
-        ("훅 경로가 다르면 → 걸려야 함", base,
+        ("Codex 훅 경로가 표준이 아니면 → 걸려야 함", base,
          {"name": "x", "version": "1.0.0", "description": "d", "license": "MIT",
           "extensions": {"com.openai": {"hooks": "./other.json"}}}, True),
+        ("Claude 가 표준 경로를 다시 가리키면 → 걸려야 함",
+         dict(base, hooks="./hooks/hooks.json"), codex, True),
     ]
     ok = True
     for label, a, b, should_fail in cases:
