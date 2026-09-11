@@ -126,12 +126,18 @@ def _as_typed_query(query):
     return _TYPED_PREFIX + one_line.replace('"', " ")
 
 
-def qmd_search(node, qmd, query, limit, timeout):
-    """qmd 의미검색. 실패하면 예외를 올린다 — 호출부가 폴백을 정한다."""
+def qmd_search(node, qmd, query, limit, timeout, env=None):
+    """qmd 의미검색. 실패하면 예외를 올린다 — 호출부가 폴백을 정한다.
+
+    env 는 node 디렉터리를 PATH 에 얹은 환경이다(paths.env_with_node). qmd 가
+    자식 node 를 PATH 로 찾기 때문에 필요하다. 이 모듈은 paths 를 import 하지
+    않으므로 호출부가 넘긴다.
+    """
     r = subprocess.run(
         [node, qmd, "query", "-n", str(limit * 7), "-c", "lessons",
          "--format", "files", _as_typed_query(query)],
-        capture_output=True, timeout=timeout, creationflags=NO_WINDOW)
+        capture_output=True, timeout=timeout, env=env,
+        creationflags=NO_WINDOW)
     # 종료코드를 안 보면 실패가 "결과 없음"과 똑같이 생긴다. 컬렉션 이름이
     # 틀렸거나 색인이 깨졌을 때가 정확히 그 모양이다.
     if r.returncode != 0:
@@ -154,7 +160,7 @@ def qmd_search(node, qmd, query, limit, timeout):
     return out
 
 
-def search(vault, query, limit, node="", qmd="", timeout=12):
+def search(vault, query, limit, node="", qmd="", timeout=12, env=None):
     """(백엔드이름, 결과, 문제) 를 돌려준다.
 
     qmd 가 있으면 qmd 를 쓰고, 없거나 실패하면 builtin 으로 떨어진다.
@@ -163,7 +169,7 @@ def search(vault, query, limit, node="", qmd="", timeout=12):
     """
     if qmd and node:
         try:
-            return "qmd", qmd_search(node, qmd, query, limit, timeout), None
+            return "qmd", qmd_search(node, qmd, query, limit, timeout, env), None
         except subprocess.TimeoutExpired:
             return ("builtin", builtin_search(vault, query, limit),
                     "qmd 가 {:g}초 안에 안 끝나 기본 검색기로 대신했다".format(timeout))

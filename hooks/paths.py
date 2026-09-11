@@ -61,7 +61,28 @@ def _first_existing(candidates, default=""):
     return default
 
 
-_HOME = os.path.expanduser("~").replace("\\", "/")
+def _find_home():
+    """사용자 홈. **환경이 축소된 훅에서도 답을 내야 한다.**
+
+    2026-09-11 실측: 하네스가 SessionEnd 훅에 넘긴 환경은 PATH 항목이 하나뿐이고
+    홈 변수도 없었다. 그때 `expanduser("~")` 는 "~" 를 그대로 돌려주고, 색인
+    경로가 그 위에 세워져 **멀쩡한 색인을 매번 "없음" 으로 읽었다.** 그래서
+    무의미한 재색인이 하루 15회 돌고 매번 실패했다.
+    """
+    h = os.path.expanduser("~").replace("\\", "/")
+    if h and not h.startswith("~"):
+        return h
+    for name in ("USERPROFILE", "HOME"):
+        v = os.environ.get(name, "").replace("\\", "/")
+        if v:
+            return v
+    # 마지막 수단: 이 파일은 홈 아래 .claude 안에 있다. 거기서 거꾸로 짚는다.
+    here = os.path.abspath(__file__).replace("\\", "/")
+    i = here.find("/.claude/")
+    return here[:i] if i > 0 else h
+
+
+_HOME = _find_home()
 _ON_WSL = os.path.isdir("/mnt/c") and os.name == "posix"
 
 
@@ -340,8 +361,13 @@ def _find_node():
     import shutil
     hit = shutil.which("node") or ""
     if not hit:
+        # PATH 가 비면 which 가 못 찾는다. 같은 2026-09-11 실측에서 훅의 PATH
+        # 항목은 하나였고, 그래서 아래 폴백 문자열 "node" 가 그대로 실행돼
+        # WinError 2 로 죽었다. 표준 설치 위치를 먼저 짚는다.
         hit = _first_existing([
             "/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node",
+            "C:/Program Files/nodejs/node.exe",
+            "C:/Program Files (x86)/nodejs/node.exe",
         ])
     if hit:
         hit = hit.replace("\\", "/")
@@ -350,6 +376,22 @@ def _find_node():
 
 
 NODE = _find_node()
+
+
+def env_with_node(base=None):
+    """qmd 를 부를 때 쓸 환경. **node 가 든 디렉터리를 PATH 에 넣어 준다.**
+
+    절대경로로 node 를 부르는 것만으로는 모자란다. qmd 는 자기 자식으로 node 를
+    다시 띄우고, 그 자식은 PATH 로 찾는다. 2026-09-11 실측에서 여기까지 가서야
+    `qmd: failed to launch node: spawn node ENOENT` 가 났다.
+    """
+    env = dict(os.environ if base is None else base)
+    d = os.path.dirname(NODE)
+    if d and os.path.isdir(d):
+        cur = env.get("PATH", "")
+        if d not in cur.split(os.pathsep):
+            env["PATH"] = d + os.pathsep + cur if cur else d
+    return env
 
 
 # ── 색인 ────────────────────────────────────────────────────────────────

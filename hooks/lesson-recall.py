@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import index_md  # noqa: E402
 import search  # noqa: E402
 import paths  # noqa: E402
-from paths import VAULT, INDEX, NODE, option, qmd_timeout_with_source  # noqa: E402
+from paths import (VAULT, INDEX, NODE, option, qmd_timeout_with_source,  # noqa: E402
+                   env_with_node)
 
 # ── 조정 지점. plugin.json 의 userConfig 로 선언돼 있고, 플러그인을 켤 때 묻는다. ──
 # 이 파일을 직접 고치지 말 것 — /plugin update 가 덮어쓴다.
@@ -109,7 +110,8 @@ def main():
     # 여기서 처음 qmd 를 찾는다. 못 찾으면 기본 검색기가 받는다.
     qmd_path, _ = paths.qmd()
     backend, raw, problem = search.search(
-        VAULT, prompt, MAX_HITS, node=NODE, qmd=qmd_path, timeout=QMD_TIMEOUT)
+        VAULT, prompt, MAX_HITS, node=NODE, qmd=qmd_path, timeout=QMD_TIMEOUT,
+        env=env_with_node())
 
     floor = MIN_SCORE if backend == "qmd" else BUILTIN_MIN_SCORE
     hits = [(s, i) for s, i in raw if s >= floor][:MAX_HITS]

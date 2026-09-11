@@ -94,7 +94,7 @@ def reindex(why):
     for step in ("update", "embed"):
         try:
             r = subprocess.run([NODE, QMD, step], capture_output=True,
-                               timeout=QMD_TIMEOUT,
+                               timeout=QMD_TIMEOUT, env=paths.env_with_node(),
                                creationflags=paths.NO_WINDOW)
         except Exception as e:
             log("분리 {} 실패({}) — {} · {}".format(step, why, e, env_probe()))
