@@ -34,6 +34,12 @@ _PKG = "/node_modules/@tobilu/qmd/bin/qmd"
 # 마지막 수단이고 실패해도 기본 검색기가 받으므로 짧게 잡는다.
 NPM_TIMEOUT = 3
 
+# Windows 에서 콘솔이 없는 부모(데스크톱 앱)가 콘솔 프로그램을 부르면 새 창이
+# 뜬다. 발화마다 도는 훅이라 사람 눈에는 검은 창이 깜빡였다 사라진다.
+# 실측(2026-09-11): 발화 시점에 python.exe·node.exe 와 함께 conhost.exe 둘이
+# 같이 떴다. 기능은 멀쩡해서 로그로는 절대 안 잡히는 종류의 결함이다.
+NO_WINDOW = 0x08000000 if os.name == "nt" else 0   # CREATE_NO_WINDOW
+
 
 def _both_forms(p):
     """C:/x 와 /mnt/c/x 를 서로 변환해 후보 목록으로 돌려준다."""
@@ -253,7 +259,7 @@ def _npm_root_qmd():
     for npm in ("npm", "npm.cmd"):
         try:
             r = subprocess.run([npm, "root", "-g"], capture_output=True,
-                               timeout=NPM_TIMEOUT)
+                               timeout=NPM_TIMEOUT, creationflags=NO_WINDOW)
         except Exception:
             continue
         if r.returncode != 0:

@@ -17,6 +17,12 @@ import os
 import re
 import subprocess
 
+# Windows 에서 콘솔이 없는 부모(데스크톱 앱)가 콘솔 프로그램을 부르면 새 창이
+# 뜬다. 발화마다 도는 훅이라 사람 눈에는 검은 창이 깜빡였다 사라진다.
+# 실측(2026-09-11): 발화 시점에 python.exe·node.exe 와 함께 conhost.exe 둘이
+# 같이 떴다. 기능은 멀쩡해서 로그로는 절대 안 잡히는 종류의 결함이다.
+NO_WINDOW = 0x08000000 if os.name == "nt" else 0   # CREATE_NO_WINDOW
+
 LSN_RE = re.compile(r"(LSN-\d{4}-\d{2}-\d{2}-\d{3})\.md$")
 
 # 한국어는 조사가 붙어 단어 단위 겹침이 안 먹는다. "타임아웃을" 과 "타임아웃" 은
@@ -100,7 +106,7 @@ def qmd_search(node, qmd, query, limit, timeout):
     r = subprocess.run(
         [node, qmd, "query", "-n", str(limit * 7), "-c", "lessons",
          "--format", "files", query],
-        capture_output=True, timeout=timeout)
+        capture_output=True, timeout=timeout, creationflags=NO_WINDOW)
     # 종료코드를 안 보면 실패가 "결과 없음"과 똑같이 생긴다. 컬렉션 이름이
     # 틀렸거나 색인이 깨졌을 때가 정확히 그 모양이다.
     if r.returncode != 0:
