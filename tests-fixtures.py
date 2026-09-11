@@ -149,6 +149,40 @@ import paths  # noqa: F401
 print("no" if called else "yes")
 ''' % HERE)
 
+    # SessionEnd 시간 측정. **벽시계 절대값을 쓰지 않는다.** 파이썬 인터프리터
+    # 시작만으로 중앙값 76ms·최악 307ms 가 나오는 기계가 있다(2026-09-11,
+    # Windows 실측 30회). 절대 상한 100ms 는 훅 코드가 0ms 여도 그런 기계에서
+    # 그냥 깨지고, 깨진 채로 방치되면 진짜 회귀까지 같이 묻힌다.
+    #
+    # 그래서 같은 조건에서 빈 인터프리터를 함께 재고 그 차이만 본다. 기계
+    # 성능과 그때그때의 부하는 양쪽에 똑같이 실리므로 차감된다. 부하 잡음은
+    # 위로만 실리므로 평균이 아니라 최솟값을 쓴다.
+    write(os.path.join(sp, "timing.py"), '''"""훅이 빈 인터프리터에 더하는 몫(ms)을 잰다. 환경은 부모에게서 상속받는다."""
+import subprocess, sys, os, time
+
+HOOK = os.path.join(%r, "hooks", "session-end.py")
+STDIN = sys.argv[1]
+N = 5
+
+
+def best(argv, stdin):
+    lo = None
+    for _ in range(N):
+        with open(stdin, "rb") as f:
+            t = time.perf_counter()
+            subprocess.run([sys.executable] + argv, stdin=f,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            ms = (time.perf_counter() - t) * 1000
+        lo = ms if lo is None else min(lo, ms)
+    return lo
+
+
+null = os.devnull
+floor = best(["-c", "pass"], null)
+hook = best([HOOK], STDIN)
+print("%%d %%d %%d" %% (round(hook - floor), round(floor), round(hook)))
+''' % HERE)
+
     print("자산을 만들었다: " + sp)
     return 0
 

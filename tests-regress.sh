@@ -70,11 +70,18 @@ chk "볼트 없으면 코드1"    "$(env -u LESSONS_VAULT HOME="$SP/emptyhome" U
 chk "설정파일만으로 점검기" "$(env -u LESSONS_VAULT CLAUDE_PLUGIN_DATA="$SP/plugindata" sh hooks/py.sh doctor.py | sed -n 2p | grep -c OK)" "1"
 
 # 최악 조건: 캐시 없음 + 느린 npm. 예전에는 여기서만 8초였다.
-s=$(date +%s%N)
-env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata" $PY hooks/session-end.py < "$SP/qe.json"
-e=$(date +%s%N)
-ms=$(( (e-s)/1000000 ))
-chk "SessionEnd 최악 100ms 이내 (${ms}ms)" "$([ "$ms" -lt 100 ] && echo yes || echo no)" "yes"
+#
+# 재는 것은 훅의 벽시계 시간이 아니라 **빈 인터프리터에 훅이 더하는 몫**이다.
+# 절대 상한 100ms 를 쓰던 동안 이 검사는 기계에 따라 경계에서 진동했는데,
+# 실측해 보니 인터프리터 시작만으로 76ms 를 쓰는 기계가 있었다(2026-09-11,
+# Windows 30회). 훅이 통제하지 못하는 것을 상한에 넣고 있었던 셈이다.
+#
+# 상한 300ms 는 넉넉하다. 이 검사가 잡으려는 회귀는 `import 만으로 qmd 탐색`
+# 같은 자릿수가 다른 사고이지, 50ms 와 100ms 의 차이가 아니다. 좁게 잡아
+# 진동시키면 실패를 사람이 넘기게 되고 그 순간 진짜 회귀까지 같이 묻힌다.
+t=$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata"       $PY "$SP/timing.py" "$SP/qe.json")
+delta=${t%% *}
+chk "SessionEnd 추가 비용 300ms 이내 (${t}ms · 몫/바닥/전체)"     "$([ "$delta" -lt 300 ] && echo yes || echo no)" "yes"
 
 chk "import 이 qmd 안 찾음" "$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata" $PY "$SP/importtime.py")" "yes"
 chk "공백 경로 볼트"       "$(LESSONS_VAULT="$SP/공백 볼트" sh hooks/py.sh session-start.py | wc -l | tr -d ' ')" "3"
