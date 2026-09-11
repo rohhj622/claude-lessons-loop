@@ -79,9 +79,22 @@ chk "설정파일만으로 점검기" "$(env -u LESSONS_VAULT CLAUDE_PLUGIN_DATA
 # 상한 300ms 는 넉넉하다. 이 검사가 잡으려는 회귀는 `import 만으로 qmd 탐색`
 # 같은 자릿수가 다른 사고이지, 50ms 와 100ms 의 차이가 아니다. 좁게 잡아
 # 진동시키면 실패를 사람이 넘기게 되고 그 순간 진짜 회귀까지 같이 묻힌다.
-t=$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata"       $PY "$SP/timing.py" "$SP/qe.json")
+# **HOME 도 함께 돌린다.** 이것 없이는 최악 조건이 성립하지 않는다. qmd 가
+# 깔린 기계에서는 `~/AppData/Roaming/npm/...` 이 표준 후보에 걸려서, 느린 npm
+# 을 부를 일 자체가 없다. 실제로 그 자산은 한 번도 안 불리고 있었다(2026-09-11).
+rm -rf "$SP/perfdata" "$SP/npmcalled"
+t=$(env PATH="$SP/slownpm" LESSONS_TEST_DATA="$SP/perfdata"       HOME="$SP/emptyhome" USERPROFILE="$SP/emptyhome"       $PY "$SP/timing.py" "$SP/qe.json")
 delta=${t%% *}
 chk "SessionEnd 추가 비용 300ms 이내 (${t}ms · 몫/바닥/전체)"     "$([ "$delta" -lt 300 ] && echo yes || echo no)" "yes"
+
+# 위 검사의 양성 대조. 느린 npm 이 정말 불렸는지를 센다. 안 불렸다면 위 숫자는
+# 최악 조건이 아니라 아무것도 없는 경로를 잰 것이고, 그러면 훅이 느려져도 안
+# 걸린다. 재색인은 분리된 자식이 하므로 흔적이 조금 늦게 생긴다 — 잠깐 기다린다.
+i=0
+while [ "$i" -lt 30 ] && [ ! -f "$SP/npmcalled" ]; do
+  sleep 0.1; i=$((i+1))
+done
+chk "느린 npm 이 실제로 불렸다" "$([ -f "$SP/npmcalled" ] && echo yes || echo no)" "yes"
 
 chk "import 이 qmd 안 찾음" "$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata" $PY "$SP/importtime.py")" "yes"
 chk "공백 경로 볼트"       "$(LESSONS_VAULT="$SP/공백 볼트" sh hooks/py.sh session-start.py | wc -l | tr -d ' ')" "3"

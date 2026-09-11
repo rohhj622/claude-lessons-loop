@@ -136,7 +136,31 @@ def main():
         os.makedirs(os.path.join(sp, empty), exist_ok=True)
 
     # 느린 npm. `npm root -g` 를 부르면 상한에 걸리도록 오래 끈다.
-    write(os.path.join(sp, "slownpm", "npm"), "#!/bin/sh\nsleep 30\n", True)
+    # **판을 둘 만든다.** 훅은 파이썬 subprocess 로 npm 을 부르는데, Windows 의
+    # CreateProcess 는 PATHEXT 를 보지 않으므로 확장자 없는 `#!/bin/sh` 파일을
+    # 띄우지 못한다. `paths._npm_root_qmd` 가 `npm` 다음에 `npm.cmd` 를 시도하는
+    # 것이 그 때문이고, 자산도 같은 두 이름을 갖춰야 양쪽에서 실제로 불린다.
+    #
+    # 불렸다는 증거를 파일로 남긴다. 이 자산은 "느린 npm 을 흉내 낸다"고 적혀만
+    # 있고 정작 한 번도 안 불리던 기간이 있었다(2026-09-11 발견). 불렸는지를
+    # 시험이 직접 센다.
+    marker = os.path.join(sp, "npmcalled").replace("\\", "/")
+    # 끄는 시간은 `paths.NPM_TIMEOUT`(3초)의 두 배 남짓이면 족하다. 30초를 끌던
+    # 동안 시험 3회에 ping 프로세스 15개가 고아로 남았다 — subprocess 의 timeout
+    # 은 부른 자식만 죽이고 그 아래 손자는 안 죽인다. 재는 동안 백그라운드가
+    # 쌓이면 그 다음 측정이 그만큼 느려져, 바로 이 시험이 고치려던 문제가 된다.
+    write(os.path.join(sp, "slownpm", "npm"),
+          "#!/bin/sh\necho called >> '" + marker + "'\nsleep 8\n", True)
+
+    # cmd 판. `timeout /t` 는 stdin 이 리다이렉트되면 거부하므로 ping 으로 끈다.
+    # PATH 를 자산 폴더로 덮어쓴 채 불리기 때문에 ping 도 절대경로여야 한다.
+    if os.name == "nt":
+        ping = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                            "System32", "ping.exe")
+        write(os.path.join(sp, "slownpm", "npm.cmd"),
+              "@echo off\r\n"
+              '>>"' + marker.replace("/", "\\") + '" echo called\r\n'
+              '"' + ping + '" -n 9 127.0.0.1 >nul\r\n')
 
     # import 만으로 npm 조회가 일어나면 훅이 매 발화 느려진다. 조회는 qmd()
     # 를 실제로 부를 때만 일어나야 한다. subprocess 를 막아 두고 확인한다.
@@ -166,11 +190,21 @@ N = 5
 
 
 def best(argv, stdin):
+    """N 회 재서 최솟값. 회차마다 캐시 폴더를 새로 준다.
+
+    캐시를 물려주면 첫 회차가 qmd 경로를 적어 두고 나머지 넷은 그것을 읽는다.
+    그러면 "캐시 없음" 이라는 최악 조건이 첫 회차에만 성립한다. 실제로 그
+    상태로 돌고 있었다(2026-09-11 발견).
+    """
     lo = None
-    for _ in range(N):
+    for i in range(N):
+        env = dict(os.environ)
+        data = os.path.join(os.environ["LESSONS_TEST_DATA"], str(i))
+        os.makedirs(data, exist_ok=True)
+        env["CLAUDE_PLUGIN_DATA"] = data
         with open(stdin, "rb") as f:
             t = time.perf_counter()
-            subprocess.run([sys.executable] + argv, stdin=f,
+            subprocess.run([sys.executable] + argv, stdin=f, env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             ms = (time.perf_counter() - t) * 1000
         lo = ms if lo is None else min(lo, ms)
