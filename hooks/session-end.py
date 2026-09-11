@@ -60,6 +60,26 @@ def lessons_mtime():
     return newest
 
 
+def env_probe():
+    """분리 프로세스가 받은 환경을 한 줄로 요약한다. 진단 전용이다.
+
+    2026-09-11 에 `분리 update 실패 — [WinError 2]` 가 났는데, 같은 시각 부모
+    훅은 같은 NODE 값으로 qmd 검색에 성공하고 있었다. 부모와 자식의 환경이
+    갈렸다는 뜻인데 그 지점을 못 짚었다. PATH 를 줄여 재현은 했지만 **실제
+    실행이 그 조건이었다는 증거가 없어** 방어 코드 대신 관측부터 넣는다.
+
+    값 자체는 찍지 않는다 — 경로에 사용자명이 들어간다. 있고 없음만 남긴다.
+    """
+    import shutil
+    path = os.environ.get("PATH", "")
+    return ("node={} which={} PATH항목={} PLUGIN_DATA={} 색인={}".format(
+        "절대경로" if os.path.isabs(paths.NODE) else repr(paths.NODE),
+        "찾음" if shutil.which("node") else "못찾음",
+        len([x for x in path.split(os.pathsep) if x]),
+        "있음" if os.environ.get("CLAUDE_PLUGIN_DATA") else "없음",
+        "있음" if os.path.exists(INDEX) else "없음"))
+
+
 def reindex(why):
     """실제 재색인. 분리된 프로세스에서 돈다. 성패를 로그에만 남긴다.
 
@@ -77,12 +97,12 @@ def reindex(why):
                                timeout=QMD_TIMEOUT,
                                creationflags=paths.NO_WINDOW)
         except Exception as e:
-            log("분리 {} 실패({}) — {}".format(step, why, e))
+            log("분리 {} 실패({}) — {} · {}".format(step, why, e, env_probe()))
             return
         if r.returncode != 0:
             tail = r.stderr.decode("utf-8", "replace").strip().splitlines()[-1:]
-            log("분리 {} 실패 rc={} {}".format(
-                step, r.returncode, tail[0] if tail else ""))
+            log("분리 {} 실패 rc={} {} · {}".format(
+                step, r.returncode, tail[0] if tail else "", env_probe()))
             return
     log("분리 갱신 완료 — {}".format(why))
 
@@ -100,6 +120,8 @@ def spawn(why):
     else:
         kw["start_new_session"] = True
     subprocess.Popen(cmd, **kw)
+    # 부모의 환경도 같이 남긴다. 자식 줄과 나란히 놓고 봐야 어디서 갈렸는지 보인다.
+    log("  부모 환경 — {}".format(env_probe()))
 
 
 def main():
