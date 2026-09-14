@@ -122,17 +122,9 @@ def main():
     if not VAULT:
         return
 
-    # 가드: 서브에이전트 / 슬래시 명령 / 너무 짧은 프롬프트
-    if data.get("agent_id") or prompt.startswith("/") or len(prompt) < MIN_PROMPT:
+    # 가드: 서브에이전트 / 슬래시 명령. 이 둘은 완전히 침묵한다.
+    if data.get("agent_id") or prompt.startswith("/"):
         return
-
-    # 색인 신선도는 검색 성패와 무관하게 먼저 판정한다.
-    # 검색이 타임아웃으로 죽어도 "색인이 낡았다"는 사실은 반드시 보여야 한다.
-    stale = None
-    try:
-        stale = stale_index_note()
-    except Exception:
-        pass
 
     # 현황·라이브 질문이면 실측 의무를 같이 내보낸다. 검색 결과와 **독립적으로**
     # 조립한다 — qmd 가 죽거나 교훈이 하나도 안 잡히는 경로에서도 나가야 한다.
@@ -151,11 +143,37 @@ def main():
         if lines:
             sys.stdout.buffer.write(("\n".join(lines) + "\n").encode("utf-8"))
 
+    # 짧은 프롬프트는 교훈 회수를 건너뛴다. 낱말이 몇 개 없으면 겹침 점수가
+    # 요동쳐 엉뚱한 교훈이 붙기 때문이다.
+    #
+    # 실측 의무 문구는 이 가드보다 앞선다. 2026-09-14 에 문구를 넣고도
+    # "지금 어디까지 됐어"(10자) 같은 가장 흔한 현황 발화에서는 안 나왔다 —
+    # 길이 가드가 live_gate() 보다 위에 있어서 판정 자체가 안 됐다. 이 문구는
+    # 발화의 길이가 아니라 성격으로 정해지므로 길이로 자를 이유가 없다.
+    if len(prompt) < MIN_PROMPT:
+        emit([])
+        return
+
+    # 색인 신선도는 검색 성패와 무관하게 먼저 판정한다.
+    # 검색이 타임아웃으로 죽어도 "색인이 낡았다"는 사실은 반드시 보여야 한다.
+    stale = None
+    try:
+        stale = stale_index_note()
+    except Exception:
+        pass
+
     # 여기서 처음 qmd 를 찾는다. 못 찾으면 기본 검색기가 받는다.
-    qmd_path, _ = paths.qmd()
-    backend, raw, problem = search.search(
-        VAULT, prompt, MAX_HITS, node=NODE, qmd=qmd_path, timeout=QMD_TIMEOUT,
-        env=env_with_node())
+    # 검색 호출을 감싼다. 위 emit() 주석은 "검색 결과와 독립적" 이라고 적었지만
+    # 출력이 검색 뒤에 있어서, 검색이 예외를 전파하면 맨 아래 포괄 except 가
+    # 그것을 삼키고 emit() 이 아예 안 불렸다. 실측 의무 문구가 조용히 사라지는
+    # 경로였다.
+    try:
+        qmd_path, _ = paths.qmd()
+        backend, raw, problem = search.search(
+            VAULT, prompt, MAX_HITS, node=NODE, qmd=qmd_path, timeout=QMD_TIMEOUT,
+            env=env_with_node())
+    except Exception as e:
+        backend, raw, problem = "builtin", [], "교훈 검색이 실패했다 — {}".format(e)
 
     floor = MIN_SCORE if backend == "qmd" else BUILTIN_MIN_SCORE
     hits = [(s, i) for s, i in raw if s >= floor][:MAX_HITS]

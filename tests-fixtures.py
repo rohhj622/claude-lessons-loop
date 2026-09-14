@@ -187,6 +187,11 @@ def main():
     # 현황형 발화. 교훈과 안 겹쳐도 실측 의무 문구(⚑)는 붙어야 한다.
     write(os.path.join(sp, "q4.json"),
           '{"prompt": "그 프로젝트 지금 어디까지 됐는지 알려줘"}\n')
+    # 12자 미만인 현황 발화. 길이 가드에 걸려도 실측 의무 문구(⚑)는 나와야
+    # 한다. q4 는 21자라 이 경로를 한 번도 안 지났다 — 정작 사람이 제일 자주
+    # 쓰는 말이 이쪽인데 회귀는 긴 쪽만 지키고 있었다(2026-09-14 GPT 검토).
+    write(os.path.join(sp, "q5.json"),
+          '{"prompt": "지금 어디까지 됐어"}\n')
     write(os.path.join(sp, "qe.json"), '{"reason": "clear"}\n')
 
     # 설정 파일만으로 볼트가 풀리는지 보는 자리.
@@ -277,6 +282,19 @@ floor = best(["-c", "pass"], null)
 hook = best([HOOK], STDIN)
 print("%%d %%d %%d" %% (round(hook - floor), round(floor), round(hook)))
 ''' % HERE)
+
+    # 검색기가 반드시 예외를 던지는 훅 트리. 실측 의무 문구는 검색과 독립이라고
+    # 적혀 있지만 출력이 검색 뒤에 있어서, 예외가 나면 문구까지 같이 사라졌다.
+    # builtin_search 는 OSError 를 이미 다 잡으므로 볼트를 망가뜨리는 것으로는
+    # 재현되지 않는다. 그래서 훅 전체를 복사하고 search.py 만 갈아 끼운다.
+    bh = os.path.join(sp, "brokenhooks")
+    if os.path.isdir(bh):
+        shutil.rmtree(bh)
+    shutil.copytree(os.path.join(HERE, "hooks"), bh)
+    write(os.path.join(bh, "search.py"),
+          "# 시험용 대역. 이 모듈은 늘 실패한다.\n"
+          "def search(*a, **k):\n"
+          "    raise RuntimeError('시험용 강제 실패')\n")
 
     print("자산을 만들었다: " + sp)
     return 0
