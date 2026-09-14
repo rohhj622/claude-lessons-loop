@@ -55,14 +55,19 @@ _BODY_WEIGHT = 0.3
 
 
 def _split_note(text):
-    """(머리 = 프론트매터의 name·aliases·tags, 몸통 = 나머지)."""
+    """(머리 = 프론트매터의 title·name·aliases·tags·id, 몸통 = 나머지).
+
+    `title` 은 2026-09-14 에 넣었다. 실제 볼트의 교훈 211건은 전부 `title` 만
+    쓰고 `name` 이 없어서, 제목이 머리에 한 번도 안 실리고 있었다. 본문의 H1
+    덕에 하한 바로 위(0.15)로 겨우 붙던 것이 그 증상이다.
+    """
     head, body = [], text
     if text.startswith("---"):
         end = text.find("\n---", 3)
         if end > 0:
             fm, body = text[3:end], text[end + 4:]
             for line in fm.splitlines():
-                if line.split(":", 1)[0].strip() in ("name", "aliases", "tags", "id"):
+                if line.split(":", 1)[0].strip() in ("title", "name", "aliases", "tags", "id"):
                     head.append(line.split(":", 1)[-1])
     return " ".join(head), body
 

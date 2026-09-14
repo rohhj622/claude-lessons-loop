@@ -72,12 +72,50 @@ author: "[[Claude]]"
 EXTRA_ROW = "| [{id}]({id}.md) | {title} | high | 2026-01-01 |\n".format(
     id=EXTRA_ID, title=EXTRA_TITLE)
 
+# 제목을 `title` 로만 적은 교훈. 실제 볼트의 스키마가 그렇다(name 이 없다).
+# 기본 검색기가 `title` 을 제목 가중 필드로 안 읽던 회귀를 잡는다 — 본문에는
+# 제목의 말이 하나도 없어서, 제목을 못 읽으면 점수가 0 이 된다.
+TITLE_ID = "LSN-2026-01-01-003"
+TITLE_TITLE = "임시 창구가 닫히면 답신 주소를 잃는다"
+TITLE_NOTE = """---
+type: lesson
+id: {id}
+title: "{title}"
+impact: medium
+date: 2026-01-01
+tags: [lesson, 검증]
+author: "[[Claude]]"
+---
+
+# {title}
+
+## 상황
+
+시험 자산으로 심은 교훈이다. 프론트매터에 name 이 없고 title 만 있다.
+
+## 실수 내용
+
+본문에는 머리글의 낱말이 하나도 없다. 그래야 검색기가 어디를 읽었는지 갈린다.
+
+## 원인
+
+머리글 필드 이름이 볼트마다 다른데 검색기는 한 가지만 알았다.
+
+## 앞으로 할 것 · 하지 말 것
+
+- 검색기가 읽는 필드 목록에 볼트 스키마의 것을 넣는다.
+""".format(id=TITLE_ID, title=TITLE_TITLE)
+
+TITLE_ROW = "| [{id}]({id}.md) | {title} | medium | 2026-01-01 |\n".format(
+    id=TITLE_ID, title=TITLE_TITLE)
+
 
 def make_vault(dest, extra=True):
     shutil.copytree(TEMPLATE, dest)
     if not extra:
         return dest
     write(os.path.join(dest, "Lessons", EXTRA_ID + ".md"), EXTRA_NOTE)
+    write(os.path.join(dest, "Lessons", TITLE_ID + ".md"), TITLE_NOTE)
     idx = os.path.join(dest, "Lessons", "INDEX.md")
     with io.open(idx, encoding="utf-8") as f:
         lines = f.readlines()
@@ -89,6 +127,7 @@ def make_vault(dest, extra=True):
             nxt = lines[i + 1] if i + 1 < len(lines) else ""
             if not nxt.startswith("| ["):
                 out.append(EXTRA_ROW)
+                out.append(TITLE_ROW)
                 put = True
     assert put, "INDEX.md 에서 교훈 행을 못 찾았다"
     write(idx, "".join(out))
@@ -126,6 +165,9 @@ def main():
           '{"prompt": "없다고 결론짓기 전에 양성 대조를 어떻게 하면 되지"}\n')
     write(os.path.join(sp, "q2.json"),
           '{"prompt": "오늘 점심에 김치찌개를 먹을까 순두부를 먹을까"}\n')
+    # 제목에만 있는 말로 묻는다. 본문 겹침은 0 이라 제목을 읽어야만 붙는다.
+    write(os.path.join(sp, "q3.json"),
+          '{"prompt": "임시 창구가 닫혀서 답신 주소를 잃어버렸어"}\n')
     write(os.path.join(sp, "qe.json"), '{"reason": "clear"}\n')
 
     # 설정 파일만으로 볼트가 풀리는지 보는 자리.

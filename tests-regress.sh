@@ -54,7 +54,10 @@ else
   skp "회수 qmd" "qmd 색인이 없다"
 fi
 chk "회수 기본검색기"      "$(QMD_BIN=/없음 sh hooks/py.sh --quiet lesson-recall.py < "$SP/q.json" | grep -c '기본 검색기')" "1"
-chk "무관 발화 침묵"       "$(QMD_BIN=/없음 sh hooks/py.sh --quiet lesson-recall.py < "$SP/q2.json" | wc -l | tr -d ' ')" "0"
+# 제목 말로 물으면 제목 가중치(0.7)가 실려 0.5 를 넘어야 한다. 본문의 H1 만으로
+# 잡히면 0.15 — 하한(0.12) 바로 위라, 건수만 세면 이 회귀는 통과해 버린다.
+chk "회수 title 가중치"     "$(QMD_BIN=/없음 sh hooks/py.sh --quiet lesson-recall.py < "$SP/q3.json" | grep 'LSN-2026-01-01-003' | sed 's/.*관련도 \([0-9.]*\).*/\1/' | awk '{print ($1 >= 0.5) ? "yes" : "no"}')" "yes"
+chk "무관 발화 침묵"      "$(QMD_BIN=/없음 sh hooks/py.sh --quiet lesson-recall.py < "$SP/q2.json" | wc -l | tr -d ' ')" "0"
 if [ -f "$QMD_INDEX" ]; then
   chk "점검기 MISSING 0"  "$(sh hooks/py.sh doctor.py | grep -c MISSING)" "0"
 else
