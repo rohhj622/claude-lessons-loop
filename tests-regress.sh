@@ -75,6 +75,9 @@ chk "파이썬 없음 침묵"     "$(env PATH="$SP/nopy" /bin/sh hooks/py.sh --q
 chk "볼트 해석 환경변수"   "$(sh hooks/py.sh --quiet paths.py --vault | grep -c vault)" "1"
 chk "볼트 해석 설정파일"   "$(env -u LESSONS_VAULT CLAUDE_PLUGIN_DATA="$SP/plugindata" sh hooks/py.sh --quiet paths.py --vault | grep -c vault)" "1"
 chk "볼트 없으면 코드1"    "$(env -u LESSONS_VAULT HOME="$SP/emptyhome" USERPROFILE="$SP/emptyhome" sh hooks/py.sh --quiet paths.py --vault >/dev/null 2>&1; echo $?)" "1"
+# 어느 사본이 도는지 가르는 두 행. 버전은 매니페스트 값과 같아야 하고 해시는 12자 16진수.
+chk "점검기 버전 행"        "$(sh hooks/py.sh doctor.py | grep '플러그인 버전' | grep -c "$(grep -o '"version": *"[^"]*"' .claude-plugin/plugin.json | sed 's/.*"\([^"]*\)"$/\1/')")" "1"
+chk "점검기 해시 행"        "$(sh hooks/py.sh doctor.py | grep '설치본 해시' | grep -Ec '[0-9a-f]{12}$')" "1"
 chk "설정파일만으로 점검기" "$(env -u LESSONS_VAULT CLAUDE_PLUGIN_DATA="$SP/plugindata" sh hooks/py.sh doctor.py | sed -n 2p | grep -c OK)" "1"
 
 # 최악 조건: 캐시 없음 + 느린 npm. 예전에는 여기서만 8초였다.

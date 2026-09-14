@@ -33,6 +33,18 @@ def _pad(s, w):
     return s + " " * max(0, w - _width(s))
 
 
+def hooks_digest():
+    """hooks/*.py 를 이름순으로 이어 sha256 앞 12자. 어느 사본이 도는지 가르는 지문."""
+    import hashlib
+    here = os.path.dirname(os.path.abspath(__file__))
+    h = hashlib.sha256()
+    for name in sorted(os.listdir(here)):
+        if name.endswith(".py"):
+            with open(os.path.join(here, name), "rb") as f:
+                h.update(name.encode("utf-8") + b"|" + f.read() + b"|")
+    return h.hexdigest()[:12]
+
+
 def collect():
     """(이름, 값, 정상인가, 고칠 방법) 목록을 만든다."""
     rows = []
@@ -118,9 +130,23 @@ def collect():
     val, src = paths.qmd_timeout_with_source()
     rows.append(_row("  qmd_timeout", "{:g}초   ({})".format(val, src), True))
 
-    # 매니페스트 둘이 갈렸는지. 갈리면 한쪽 제품에서만 낡은 것이 돈다.
+    # 이 점검기가 도는 사본의 버전과 훅 파일 해시. 캐시 사본에서 돌면 캐시 값,
+    # 소스에서 돌면 소스 값이 나온다. 둘을 나란히 놓아야 "새 세션이 어느 사본을
+    # 부르는가" 가 보인다 — 소스를 고쳐 푸시하고도 훅은 옛 캐시를 읽고 있던
+    # 일이 두 번 있었다(2026-09-11, 2026-09-14).
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import manifests
+        ver = manifests._read(manifests.CLAUDE).get("version", "(없음)")
+        rows.append(_row("플러그인 버전", ver, ver != "(없음)",
+                         ".claude-plugin/plugin.json 의 version 을 본다."))
+        rows.append(_row("설치본 해시", hooks_digest(), True))
+    except Exception as e:
+        rows.append(_row("플러그인 버전", "확인 못 함 — {}".format(e), False,
+                         "매니페스트 파일이 있는지 본다."))
+
+    # 매니페스트 둘이 갈렸는지. 갈리면 한쪽 제품에서만 낡은 것이 돈다.
+    try:
         import manifests
         bad = manifests.compare(manifests._read(manifests.CLAUDE),
                                 manifests._read(manifests.CODEX))
