@@ -37,6 +37,7 @@ chk() {
 }
 
 chk "파서 자가검사"       "$($PY hooks/index_md.py --selftest >/dev/null 2>&1; echo $?)" "0"
+chk "검색기 자가검사"      "$($PY hooks/search.py --selftest >/dev/null 2>&1; echo $?)" "0"
 chk "매니페스트 자가검사"  "$($PY hooks/manifests.py --selftest >/dev/null 2>&1; echo $?)" "0"
 chk "매니페스트 일치"      "$($PY hooks/manifests.py >/dev/null 2>&1; echo $?)" "0"
 chk "lint 자가검사"       "$(cd "$SP/vault" && $PY _Meta/lint.py --selftest >/dev/null 2>&1; echo $?)" "0"

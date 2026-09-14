@@ -107,28 +107,34 @@ class QmdFailed(Exception):
 
 
 # qmd 는 맨 질의를 받으면 **생성 모델로 질의를 19~20개로 불린다**(확장).
-# 그 단계가 비용의 대부분이다 — 새 질의 10~11초, 확장을 건너뛰면 3.5초(실측
-# 2026-09-11, RTX 5070). 훅은 발화마다 새 질의를 보내므로 캐시가 맞는 일이
-# 없어 늘 10초대였고, 12초 상한 바로 아래에 붙어 있었다.
+# 그 단계가 비용의 대부분이다 — 새 질의 8~9초, 타입을 지정하면 3.4초(실측
+# 2026-09-14, RTX 5070). 훅은 발화마다 새 질의를 보내므로 캐시가 맞는 일이
+# 없어 늘 그 값이고, 12초 상한과 사이가 좁았다.
 #
 # 더 나쁜 것은 GPU 경합이다. 확장 경로는 모델 셋(생성·임베딩·재순위)을 띄워
 # VRAM 을 물고, 여럿이 겹치면 재순위 컨텍스트 생성에서 깨진다. 같은 날 동시
 # 실행으로 재현한 것 — 4개에서 rc=1, 8개에서 ggml 이 CUDA 오류로 abort 했다
-# (rc=3221226505). `vec:` 로 부르면 같은 부하에서 4개까지 전원 성공했다.
+# (rc=3221226505). 타입을 지정하면 같은 부하에서 4개까지 전원 성공했다.
 #
-# 대가는 재현율이다. 확장이 9건 찾을 때 `vec:` 는 6건을 찾았다. 훅은 상위
-# 3건만 쓰므로, 12초를 넘겨 글자 겹침으로 떨어지는 것보다 낫다고 봤다.
-_TYPED_PREFIX = "vec: "
+# **타입을 둘 다 준다.** 2026-09-11 에는 `vec:` 한 줄이었는데, 그 경로가
+# 후보를 통째로 0건으로 돌려주는 질문이 있었다. 회수 시험지 14행 중 3행이
+# 그랬고(`--min-score 0` 을 줘도 0건), 같은 질문을 `lex:` 는 0.93 으로 1위에
+# 올렸다(2026-09-14 실측). 둘은 서로 실패하는 자리가 갈려서, `lex:` 가 0건인
+# "MLflow 아티팩트가…" 를 `vec:` 가 0.93 으로 잡는다.
+#
+# 비용은 늘지 않는다. lex 단독은 0.5초이고, 두 줄을 합쳐도 3.4초로 `vec:`
+# 한 줄과 같다 — 임베딩 한 번이 그 시간의 대부분이라 lex 는 묻힌다.
+_TYPED_PREFIXES = ("lex: ", "vec: ")
 
 
 def _as_typed_query(query):
-    """질의를 qmd 의 타입 지정 질의서 한 줄로 만든다.
+    """질의를 qmd 의 타입 지정 질의서로 만든다. lex 와 vec 두 줄이다.
 
     문법이 **한 줄에 따옴표가 짝을 이룰 것**을 요구한다. 발화는 여러 줄이고
     따옴표가 홀수로 남기도 해서, 개행은 공백으로 접고 큰따옴표는 뺀다.
     """
-    one_line = " ".join(query.split())
-    return _TYPED_PREFIX + one_line.replace('"', " ")
+    one_line = " ".join(query.split()).replace('"', " ")
+    return "\n".join(p + one_line for p in _TYPED_PREFIXES)
 
 
 def qmd_search(node, qmd, query, limit, timeout, env=None):
@@ -182,3 +188,29 @@ def search(vault, query, limit, node="", qmd="", timeout=12, env=None):
             return ("builtin", builtin_search(vault, query, limit),
                     "qmd 실행이 실패해 기본 검색기로 대신했다 — {}".format(e))
     return "builtin", builtin_search(vault, query, limit), None
+
+
+def selftest():
+    """검사기가 실제로 도는지 본다. 질의서 조립만 확인한다 — 색인이 없어도 돌아야 한다."""
+    ok = True
+    cases = [
+        ("보통 발화", "ageco 진행상황 어떻게 되지?"),
+        ("여러 줄", "앞줄" + chr(10) + "뒷줄"),
+        ('따옴표 홀수', '이건 "반쪽 따옴표 질의'),
+    ]
+    for label, q in cases:
+        t = _as_typed_query(q)
+        lines = t.splitlines()
+        good = (len(lines) == 2
+                and lines[0].startswith("lex: ") and lines[1].startswith("vec: ")
+                and '"' not in t)
+        ok = ok and good
+        print("%s  %s" % ("OK " if good else "실패", label))
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.exit(selftest() if "--selftest" in sys.argv else 0)
