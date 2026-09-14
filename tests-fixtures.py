@@ -162,6 +162,11 @@ def main():
     write(note, "---\ntype: project\n---\n\n# 새 노트\n")
     os.utime(note, (now, now))
 
+    # 볼트 전체보다 새로운 색인. 정상이면 종료 훅이 "건너뜀" 으로 끝난다.
+    # 순회 상한에 걸린 경로만 갈라 보려면 이 대조군이 있어야 한다.
+    write(os.path.join(sp, "fakeidx2"), "")
+    os.utime(os.path.join(sp, "fakeidx2"), (now + 600, now + 600))
+
     # INDEX.md 가 없는 볼트. lint 는 이것을 도구 실패로 보고해야 한다.
     v3 = make_vault(os.path.join(sp, "v3"), extra=False)
     os.remove(os.path.join(v3, "Lessons", "INDEX.md"))

@@ -20,7 +20,7 @@ reason 값 5종(clear/resume/logout/prompt_input_exit/other)이 각각 어떤 �
 나오는지는 문서에 없다. 매처로 가리지 않고 전부 받되, 실제 값을 로그에 찍어
 며칠 모은 뒤에 판단한다.
 """
-import sys, json, os, subprocess, datetime
+import sys, json, os, subprocess, datetime, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import paths  # noqa: E402
@@ -38,6 +38,13 @@ def log(msg):
             f.write(line)
     except OSError:
         pass
+
+
+# 초. 볼트 순회에 쓸 수 있는 시간. 훅 전체 예산은 3초다. 환경변수는 회귀
+# 시험이 상한에 걸린 경로를 재현하려고 쓴다 — 사용자 설정 항목이 아니라서
+# plugin.json 의 userConfig 로는 내놓지 않는다.
+WALK_BUDGET = float(os.environ.get("LESSONS_WALK_BUDGET") or 1.0)
+WALK_ABORT = float("inf")   # 상한에 걸렸다는 표시. 어떤 색인 시각보다도 크다.
 
 
 def index_mtime():
@@ -62,10 +69,18 @@ def vault_mtime():
     폴더의 mtime 은 바뀐다. 점으로 시작하는 폴더(.git·.obsidian·.claude)는
     노트가 아니고 커밋마다 바뀌어서 뺀다.
 
-    비용은 실측 8ms(노트 531건, 2026-09-14). 훅 3초 예산 안이다.
+    비용은 실측 8ms(노트 531건, 2026-09-14). 다만 그 숫자는 한 볼트 한 기계의
+    측정이지 상한 보장이 아니다. 느린 파일시스템이나 큰 비숨김 폴더에서는 훅
+    3초 예산을 먹을 수 있어서 WALK_BUDGET 으로 자른다. 잘렸으면 그때까지 본
+    것 중 최신을 돌려주는 대신 "재색인 필요" 쪽으로 기운다(WALK_ABORT) —
+    미탐(노트가 검색에서 통째로 빠짐)이 오탐(재색인 한 번 더)보다 훨씬 비싸고,
+    재색인은 분리된 프로세스라 세션을 막지 않는다.
     """
+    deadline = time.time() + WALK_BUDGET
     newest = 0.0
     for root, dirs, files in os.walk(VAULT):
+        if time.time() > deadline:
+            return WALK_ABORT
         dirs[:] = [d for d in dirs if not d.startswith(".")]
         try:
             newest = max(newest, os.path.getmtime(root))
@@ -166,7 +181,12 @@ def main():
         log("reason={} 건너뜀 — 색인이 최신".format(reason))
         return
 
-    why = "색인 파일 없음" if not idx else "볼트 노트가 색인보다 최신"
+    if not idx:
+        why = "색인 파일 없음"
+    elif lsn == WALK_ABORT:
+        why = "볼트 순회가 {}초 상한에 걸림 — 판정 대신 재색인".format(WALK_BUDGET)
+    else:
+        why = "볼트 노트가 색인보다 최신"
     try:
         spawn(why)
         log("reason={} 재색인을 분리해 띄웠다 — {}".format(reason, why))

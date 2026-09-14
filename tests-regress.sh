@@ -108,6 +108,13 @@ done
 n=$(wc -l < hooks/session-end.log 2>/dev/null || echo 0)
 LESSONS_VAULT="$SP/vaultproj" QMD_INDEX="$SP/fakeidx" QMD_BIN=/없음 sh hooks/py.sh --quiet session-end.py < "$SP/qe.json"
 chk "Projects 변경도 재색인"  "$(tail -n +$((n+1)) hooks/session-end.log | grep -c '재색인을 분리해 띄웠다')" "1"
+# 색인이 볼트 전체보다 새로우면 건너뛴다. 순회 상한에 걸린 경우에만 갈라진다.
+n=$(wc -l < hooks/session-end.log 2>/dev/null || echo 0)
+LESSONS_VAULT="$SP/vault" QMD_INDEX="$SP/fakeidx2" QMD_BIN=/없음 sh hooks/py.sh --quiet session-end.py < "$SP/qe.json"
+chk "색인이 최신이면 건너뜀"  "$(tail -n +$((n+1)) hooks/session-end.log | grep -c '건너뜀 — 색인이 최신')" "1"
+n=$(wc -l < hooks/session-end.log 2>/dev/null || echo 0)
+LESSONS_WALK_BUDGET=0 LESSONS_VAULT="$SP/vault" QMD_INDEX="$SP/fakeidx2" QMD_BIN=/없음 sh hooks/py.sh --quiet session-end.py < "$SP/qe.json"
+chk "순회 상한이면 재색인"    "$(tail -n +$((n+1)) hooks/session-end.log | grep -c '상한에 걸림')" "1"
 chk "느린 npm 이 실제로 불렸다" "$([ -f "$SP/npmcalled" ] && echo yes || echo no)" "yes"
 
 chk "import 이 qmd 안 찾음" "$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata" $PY "$SP/importtime.py")" "yes"
