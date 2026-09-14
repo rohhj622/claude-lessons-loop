@@ -97,6 +97,12 @@ i=0
 while [ "$i" -lt 30 ] && [ ! -f "$SP/npmcalled" ]; do
   sleep 0.1; i=$((i+1))
 done
+# Lessons/ 는 색인보다 낡고 Projects/ 노트만 새롭다. 훅은 재색인을 띄워야 한다.
+# 부모가 남기는 줄을 본다 — 분리된 자식은 qmd 가 없어 "건너뜀" 을 뒤에 덧붙인다.
+# 로그는 누적이라 앞선 시험 줄이 섞인다. 이번 실행이 더한 줄만 본다.
+n=$(wc -l < hooks/session-end.log 2>/dev/null || echo 0)
+LESSONS_VAULT="$SP/vaultproj" QMD_INDEX="$SP/fakeidx" QMD_BIN=/없음 sh hooks/py.sh --quiet session-end.py < "$SP/qe.json"
+chk "Projects 변경도 재색인"  "$(tail -n +$((n+1)) hooks/session-end.log | grep -c '재색인을 분리해 띄웠다')" "1"
 chk "느린 npm 이 실제로 불렸다" "$([ -f "$SP/npmcalled" ] && echo yes || echo no)" "yes"
 
 chk "import 이 qmd 안 찾음" "$(env PATH="$SP/slownpm" CLAUDE_PLUGIN_DATA="$SP/emptydata" $PY "$SP/importtime.py")" "yes"

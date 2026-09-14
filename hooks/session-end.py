@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""SessionEnd 훅 — qmd 색인이 Lessons 실물보다 낡았으면 갱신한다.
+"""SessionEnd 훅 — qmd 색인이 볼트 노트 실물보다 낡았으면 갱신한다.
 
 `/wrap` 의 색인 갱신 항목은 사람·에이전트가 챙겨야 하는 절차라 빠질 수 있다.
 2026-08-04 에 5일 밀려 LSN 25건(29%)이 검색에서 통째로 빠진 전례가 있다.
@@ -51,12 +51,32 @@ def index_mtime():
     return m
 
 
-def lessons_mtime():
+def vault_mtime():
+    """볼트 전체에서 가장 최신인 .md 파일 또는 폴더의 mtime.
+
+    2026-09-14 까지는 Lessons/ 만 봤다. `qmd update` 는 볼트의 컬렉션 전체를
+    갱신하므로 판정만 좁았던 것이다 — Projects/ 나 Runbooks/ 만 고친 세션은
+    "색인이 최신" 으로 건너뛰어 그 노트가 다음 세션 검색에서 통째로 빠졌다.
+
+    폴더 mtime 도 같이 본다. 파일을 지우면 파일 mtime 은 사라지지만 담고 있던
+    폴더의 mtime 은 바뀐다. 점으로 시작하는 폴더(.git·.obsidian·.claude)는
+    노트가 아니고 커밋마다 바뀌어서 뺀다.
+
+    비용은 실측 8ms(노트 531건, 2026-09-14). 훅 3초 예산 안이다.
+    """
     newest = 0.0
-    ldir = os.path.join(VAULT, "Lessons")
-    for name in os.listdir(ldir):
-        if name.endswith(".md"):
-            newest = max(newest, os.path.getmtime(os.path.join(ldir, name)))
+    for root, dirs, files in os.walk(VAULT):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        try:
+            newest = max(newest, os.path.getmtime(root))
+        except OSError:
+            pass
+        for name in files:
+            if name.endswith(".md"):
+                try:
+                    newest = max(newest, os.path.getmtime(os.path.join(root, name)))
+                except OSError:
+                    pass
     return newest
 
 
@@ -141,12 +161,12 @@ def main():
 
     # **여기서 qmd 를 찾지 않는다.** 파일 시각만 보고 판단한다. qmd 탐색은
     # 분리된 자식이 한다. 훅은 3초 안에 끝나야 한다(Codex 상한).
-    idx, lsn = index_mtime(), lessons_mtime()
+    idx, lsn = index_mtime(), vault_mtime()
     if idx and lsn <= idx:
         log("reason={} 건너뜀 — 색인이 최신".format(reason))
         return
 
-    why = "색인 파일 없음" if not idx else "Lessons 가 색인보다 최신"
+    why = "색인 파일 없음" if not idx else "볼트 노트가 색인보다 최신"
     try:
         spawn(why)
         log("reason={} 재색인을 분리해 띄웠다 — {}".format(reason, why))

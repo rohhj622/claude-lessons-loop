@@ -17,6 +17,7 @@ import os
 import shutil
 import stat
 import sys
+import time
 
 # Windows 콘솔의 기본 코드페이지는 한글을 못 낸다. 자산 생성기가 거기서 죽으면
 # 시험이 시작도 못 한다.
@@ -145,6 +146,21 @@ def main():
 
     make_vault(os.path.join(sp, "vault"))
     make_vault(os.path.join(sp, "공백 볼트"))
+
+    # Lessons/ 는 색인보다 낡고 Projects/ 의 노트만 색인보다 새로운 볼트.
+    # 종료 훅이 Lessons/ 만 보면 "색인이 최신" 으로 건너뛰고, 그 노트는 다음
+    # 세션 검색에서 통째로 빠진다(2026-09-14 GPT 검토가 짚음). 시각은 mtime 을
+    # 직접 박는다 — 만든 순서에 기대면 같은 초 안에서 동률이 나 판정이 흔들린다.
+    vp = make_vault(os.path.join(sp, "vaultproj"))
+    now = time.time()
+    for name in os.listdir(os.path.join(vp, "Lessons")):
+        os.utime(os.path.join(vp, "Lessons", name), (now - 120, now - 120))
+    os.utime(os.path.join(vp, "Lessons"), (now - 120, now - 120))
+    write(os.path.join(sp, "fakeidx"), "")
+    os.utime(os.path.join(sp, "fakeidx"), (now - 60, now - 60))
+    note = os.path.join(vp, "Projects", "PRJ-2026-001.md")
+    write(note, "---\ntype: project\n---\n\n# 새 노트\n")
+    os.utime(note, (now, now))
 
     # INDEX.md 가 없는 볼트. lint 는 이것을 도구 실패로 보고해야 한다.
     v3 = make_vault(os.path.join(sp, "v3"), extra=False)
