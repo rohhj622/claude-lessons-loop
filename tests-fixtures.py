@@ -184,6 +184,9 @@ def main():
     # 제목에만 있는 말로 묻는다. 본문 겹침은 0 이라 제목을 읽어야만 붙는다.
     write(os.path.join(sp, "q3.json"),
           '{"prompt": "임시 창구가 닫혀서 답신 주소를 잃어버렸어"}\n')
+    # 현황형 발화. 교훈과 안 겹쳐도 실측 의무 문구(⚑)는 붙어야 한다.
+    write(os.path.join(sp, "q4.json"),
+          '{"prompt": "그 프로젝트 지금 어디까지 됐는지 알려줘"}\n')
     write(os.path.join(sp, "qe.json"), '{"reason": "clear"}\n')
 
     # 설정 파일만으로 볼트가 풀리는지 보는 자리.

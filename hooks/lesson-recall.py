@@ -35,6 +35,37 @@ QMD_TIMEOUT = qmd_timeout_with_source()[0]
 # 나오므로 파일명만 본다. INDEX.md는 이 패턴에 걸리지 않아 자연히 배제된다.
 LSN_RE = re.compile(r"(LSN-\d{4}-\d{2}-\d{2}-\d{3})\.md$")
 
+# 현황·라이브형 질문의 표지. 넓게 잡는다 — 아래 live_gate() 주석 참조.
+# 한국어 전용이다. 다른 말로 쓰는 볼트는 live_gate 옵션으로 끈다.
+LIVE_RE = re.compile(
+    r"어디까지|어디쯤|진행\s*상황|진척|뭐가\s*남|남은\s*(게|것|일)|"
+    r"막힘|왜\s*막|블로커|지금\s*(상태|어떻|어디)|현재\s*상태|현황|"
+    r"돌고\s*있|떠\s*있|살아\s*있|죽었|배포\s*(됐|되었|상태)|"
+    r"얼마나\s*쌓|몇\s*건|적재\s*(량|됐)")
+LIVE_GATE = str(option("live_gate", "true")).strip().lower() not in ("false", "0", "no", "off")
+
+
+def live_gate(prompt):
+    """현황·라이브형 질문이면 실측 의무 문구를 돌려준다. 아니면 None.
+
+    2026-09-14: 볼트 PRJ 노트의 `막힘:` 에 적힌 11일 전 관측을 오늘의 사실로
+    보고했다. 규칙이 없어서가 아니다 — 그 실수를 금지하는 에이전트가 있는데
+    **안 불렸다**. 주입된 교훈은 추상 원칙이라 "막힘 칸 = 라이브 주장" 이라는
+    판정을 스스로 해야 적용됐다. 그 판정을 여기서 대신 한다.
+
+    처음엔 플러그인 밖의 옛 전역 훅에 넣었는데, settings.json 이 그 파일을
+    안 부르고 있었다. 실제 호출 경로는 이 파일이다.
+
+    과다 발화는 감수한다 — 오발 비용은 세 줄이고, 미발 비용은 저 사고다.
+    """
+    if not LIVE_GATE or not LIVE_RE.search(prompt):
+        return None
+    return ("⚑ 현황·라이브형 질문으로 보인다. 노트를 읽더라도 **라이브를 직접 재고** 답한다.\n"
+            "  · 노트의 `막힘:` 은 그날의 관측이지 오늘의 사실이 아니다. 증거 명령이 인용돼 "
+            "있어도 다시 친다.\n"
+            "  · 빈 결과·종료코드 0 은 부재의 증거가 아니다. 양성 대조로 도구가 살아 있는지 "
+            "먼저 가른다.")
+
 
 def lesson_titles():
     """ID → (제목, 중요도) 맵. 표 읽기는 index_md 한 곳에서만 한다."""
@@ -103,7 +134,20 @@ def main():
     except Exception:
         pass
 
+    # 현황·라이브 질문이면 실측 의무를 같이 내보낸다. 검색 결과와 **독립적으로**
+    # 조립한다 — qmd 가 죽거나 교훈이 하나도 안 잡히는 경로에서도 나가야 한다.
+    gate = None
+    try:
+        gate = live_gate(prompt)
+    except Exception:
+        pass
+
     def emit(lines):
+        lines = list(lines)
+        if gate:
+            if lines:
+                lines.append("")
+            lines.append(gate)
         if lines:
             sys.stdout.buffer.write(("\n".join(lines) + "\n").encode("utf-8"))
 

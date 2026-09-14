@@ -51,6 +51,12 @@
       "min": 1,
       "max": 14
     },
+    "live_gate": {
+      "type": "string",
+      "title": "현황형 발화에 실측 의무 문구",
+      "description": "'지금 어디까지 됐어' 같은 현황·라이브형 질문에 '노트가 아니라 라이브를 다시 재라'는 세 줄을 붙인다. 표지는 한국어 정규식이라 다른 말로 쓰는 볼트는 false 로 끈다.",
+      "default": "true"
+    },
     "builtin_min_score": {
       "type": "number",
       "title": "기본 검색기 유사도 하한",
