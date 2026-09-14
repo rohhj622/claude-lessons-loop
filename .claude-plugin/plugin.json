@@ -2,7 +2,7 @@
   "name": "claude-lessons-loop",
   "displayName": "Lessons Loop",
   "description": "이번 세션의 실수를 다음 세션의 경고 문장으로 되돌려 주는 훅·스킬 묶음. 교훈을 마크다운으로 쌓고, 세션 시작과 발화마다 컨텍스트에 직접 주입한다.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": {
     "name": "Hyunjin Roh"
   },
