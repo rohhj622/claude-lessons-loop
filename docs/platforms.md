@@ -105,11 +105,23 @@ codex plugin add claude-lessons-loop@claude-lessons-loop
 | 모듈 불러오기만 | 8.0초 | 0.007초 |
 | SessionEnd 훅 전체 | 3초 초과 | 0.038초 |
 
-## `hooks/py.cmd` — 작성했으나 실측 없음
+## `hooks/py.cmd` — Windows 11 에서 실측 (2026-09-23)
 
-Windows 용 파이썬 실행기다. macOS 에서 작성했고 **Windows 에서 한 번도 안 돌려
-봤다.** `py -3`, `python3`, `python` 순으로 찾고 없으면 한 줄을 내고 종료코드 0
-으로 끝난다. `py.sh` 와 같은 규칙이다.
+Windows 용 파이썬 실행기다. `py -3`, `python3`, `python` 순으로 찾고 없으면 한 줄을
+내고 종료코드 0 으로 끝난다. `py.sh` 와 같은 규칙이다.
+
+macOS 에서 작성한 초판은 Windows 에서 두 군데가 깨져 있었다.
+
+- 줄바꿈이 LF 라 cmd 가 한글 주석을 명령으로 읽었다. `.gitattributes` 로 CRLF 를 고정했다.
+- `chcp` 가 표준 입력을 먹어서 훅 입력이 파이썬에 0 바이트로 갔다. `<nul` 을 붙였다.
+
+Claude Code 가 Windows 에서 `commandWindows` 를 실제로 쓰는지는 확인하지 못했다.
+
+## `hooks/py.sh` — 실행해 보고 고른다
+
+Windows 스토어의 `python3` 대체 실행 파일은 `command -v` 에 잡히지만 실행하면
+"Python was not found" 를 내고 49 로 끝난다. 그래서 후보를 실제로 한 번 돌려 보고
+고른다. `tests-regress.sh` 도 같은 방식이다.
 
 ## Windows · WSL 주의
 

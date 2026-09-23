@@ -6,7 +6,13 @@ R=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$R" || exit 1
 
 # 파이썬도 기계마다 이름과 자리가 다르다.
-PY=${PY:-$(command -v python3 || command -v python)}
+# 있는지가 아니라 도는지를 본다. hooks/py.sh 와 같은 이유다.
+if [ -z "$PY" ]; then
+    for c in python3 python; do
+        # 절대경로로 담는다. PATH 를 좁혀 부르는 검사가 있다.
+        "$c" -c "" >/dev/null 2>&1 && { PY=$(command -v "$c"); break; }
+    done
+fi
 [ -n "$PY" ] || { echo "파이썬이 없다." >&2; exit 2; }
 
 # Windows 콘솔의 기본 코드페이지는 한글을 못 낸다. 이것 없이는 한글을 찍는

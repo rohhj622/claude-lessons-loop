@@ -22,11 +22,16 @@ if [ "$1" = "--quiet" ]; then
     shift
 fi
 
-if command -v python3 >/dev/null 2>&1; then
-    PY=python3
-elif command -v python >/dev/null 2>&1; then
-    PY=python
-else
+# 있는지만 보면 안 되고 실제로 돌려 본다. Windows 스토어의 python3 대체 실행 파일은
+# command -v 에 잡히지만 "Python was not found" 를 내고 49 로 끝난다 (2026-09-23 실측).
+PY=
+for c in python3 python; do
+    if "$c" -c "" >/dev/null 2>&1; then
+        PY=$c
+        break
+    fi
+done
+if [ -z "$PY" ]; then
     if [ "$QUIET" = "0" ]; then
         echo "claude-lessons-loop: 파이썬 3 을 못 찾아 교훈 회수가 통째로 꺼져 있다."
         echo "  확인: python3 --version"

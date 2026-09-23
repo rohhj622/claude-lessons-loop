@@ -1,0 +1,2 @@
+# cmd 는 LF 줄바꿈에서 한글 주석을 명령으로 읽는다 (docs/platforms.md).
+*.cmd text eol=crlf

@@ -6,10 +6,11 @@ rem
 rem 파이썬이 없으면 한 줄을 내고 종료코드 0 으로 끝난다. 작업은 막지 않되
 rem 침묵하지 않는다. py.sh 와 같은 규칙이다.
 rem
-rem 주의: 이 파일은 macOS 에서 작성했고 Windows 에서 실측하지 않았다.
-rem       docs/platforms.md 에 그렇게 적어 두었다.
+rem 줄바꿈은 CRLF 여야 한다. LF 로 두면 cmd 가 한글 주석을 명령으로 읽는다.
+rem chcp 는 표준 입력을 먹는다. <nul 을 빼면 훅 입력이 파이썬에 0 바이트로 간다.
+rem (둘 다 2026-09-23 Windows 11 실측)
 setlocal
-chcp 65001 >nul 2>&1
+chcp 65001 <nul >nul 2>&1
 set "DIR=%~dp0"
 set "QUIET=0"
 set "SCRIPT=%~1"
